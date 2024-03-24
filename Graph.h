@@ -7,18 +7,13 @@ private:
 	std::string dir; //input graph directory
 	int n; //number of nodes of the graph
 	int m; //number of edges of the graph
-	int K; //the value of k in k-plex
+	int K; //the upper bound of missing edges
 
 	int *pstart; //offset of neighbors of nodes
 	int *pend; //used in search
-	//!add the pstart and edges for the 2hop
-	int *pstart2;
-	int *edges2;
-	int maxCore;
-	//!
 	int *pend_buf;
 	int *edges; //adjacent ids of edges
-	int maxDeg;
+	long double gamma;
 	std::vector<int> KDC;
 
 	int *s_degree;
@@ -37,7 +32,7 @@ private:
 	char *s_deleted;
 
 public:
-	Graph(const char *_dir, const int _K) ;
+	Graph(const char *_dir, const long double _GAMMA) ;
 	~Graph() ;
 
 	void read() ;
@@ -47,16 +42,17 @@ public:
 	void verify_kplex() ;
 
 	void search() ;
-
+	//test
+	void print_info();
+	void setK();
 private:
 	void extract_subgraph(int u, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, char *exists, int *pstart, int *pend, int *edges, char *deleted, int *edgelist_pointer) ;
 	void extract_graph(int n, int m, int *deg, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, char *exists, int *pstart, int *pend, int *edges, char *deleted, int *edgelist_pointer) ;
 	void induceSubgraph(int u, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, int *Q, int* degree, char *exists, int *pend, char *deleted, int *edgelist_pointer) ;
-	void induce2hopSubgraph(int u, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, int *Q, int* degree, char *exists, int *pend, char *deleted, int *edgelist_pointer);
+
 	int degen(int n, int *peel_sequence, int *core, int *pstart, int *edges, int *degree, char *vis, ListLinearHeap *heap, bool output) ;
-	//! add here
-	int degen2hop(int n, int *peel_sequence, int *core, int *pstart, int *edges, int *degree, char *vis, ListLinearHeap *heap, bool output);
-	void construct_2hop_relations(int *pstart, int *edges, int *deg2hop);
+	int twoHopDegConstruct(int n, int m);
+	int degenBy2hopDeg(int n, int *peel_sequence, int *core, int *pstart, int *edges, int *degree, char *vis, ListLinearHeap *heap, bool output);
 	void shrink_graph(int &n, int &m, int *peel_sequence, int *core, int *out_mapping, int *in_mapping, int *rid, int *pstart, int *edges) ;
 	void oriented_triangle_counting(int n, int m, int *peel_sequence, int *pstart, int *pend, int *edges, int *tri_cnt, int *adj) ;
 	void reorganize_oriented_graph(int n, int *tri_cnt, int *edge_list, int *pstart, int *pend, int *pend2, int *edges, int *edgelist_pointer, int *buf) ;
@@ -66,5 +62,8 @@ private:
 	// functions for subgraph processing
 	void load_graph_from_edgelist(int _n, const std::vector<std::pair<int,int> > &edge_list, int &n, int &m, int *degree, int *pstart, int *edges) ;
 	int subgraph_heuri(ui *ids, ui &_n, std::vector<std::pair<int,int> > &edge_list, ui *rid, ui *Qv, ui *Qe, char *exists);
+
+
+	
 };
 #endif

@@ -2,48 +2,46 @@
 #include "LinearHeap.h"
 #include "Utility.h"
 #include "Timer.h"
-#include "ColorPacker.h"
 using namespace std;
 /* 
 * 注: restore set公用一个restore set是有问题的，因为比如一个点从C移动到CX,再从CX移动到X, 进行第二步时会改变原来的restoreset值
  */ 
 // #define COLORCANDIBOUND
-#define _TEST_
+// #define _TEST_
 #define DPBOUND
 // #define INITBOUND
 // #define _CANDIBOUND_
 // #define _TWOBRANCH_
+#define _DSET_TWOBRANCH_
 #define _SECOND_ORDER_REDUCTION_
 // #define _DBUG_
 // #define _CHECK_COIN_
+//! errors
 #define _REMOVE_EDGES_
 // #define _CLIQUEC_
-
-
 int max_P_end=0;
 int maxME=0; // the max num of missing edges in ans
-long long tree_cnt=0, szSum=0, MuExSum=0;
+long long tree_cnt=0;
+long long szSum=0;
 int subNum=0;//记录子图的个数
 int P_UBMin=10000;
-
+long long MuExSum=0;
 int MaxMuExNum=0;
 long long colMuExSum=0;
 int maxColMuNum=0;
 double denSum=0.0;
 long long denNum=0;
 double avgSubDense=0.0;
-int maxSubSz=0;
 // #define _MULTIBRANCH_
 long long colorBndPrune=0;
 long long boundPrune=0;
 int maxColSz=0;
-
-
 class SubSearcher;
+class HeuriSearcher;
 class ExactSearcher;
 class ExactSearcher2;
 #ifdef _DBUG_
-bool vecCmp(vector<int> &vec1, vector<int> &vec2){//用于比较两个vector是否一样
+bool vecCmp(vector<int> &vec1, vector<int> &vec2){
 	bool flag=true;
 	if(vec1.size()!=vec2.size()){
 		printf("unequal length: vec1: %d; vec2: %d\n",vec1.size(),vec2.size());
@@ -51,7 +49,6 @@ bool vecCmp(vector<int> &vec1, vector<int> &vec2){//用于比较两个vector是�
 	}
 
 	int len=vec1.size();
-	//分别对两个vector排序
 	sort(vec1.begin(), vec1.end());
 	sort(vec2.begin(),vec2.end());
 	for (int i = 0; i < len; i++){
@@ -71,7 +68,7 @@ bool vecCmp(vector<int> &vec1, vector<int> &vec2){//用于比较两个vector是�
 	}
 	return flag;
 }
-void vecPush(vector<int>& vec,int *array,int start,int end){//将数组[start~end]的元素放入vec中
+void vecPush(vector<int>& vec,int *array,int start,int end){
 	for (int i = start; i < end; i++)
 		vec.push_back(array[i]);
 	
@@ -130,8 +127,8 @@ public:
 	void release() ;
 	void load(ExactSearcher* exactSearcher) ;
 	void loadCN(ExactSearcher* exactSearcher);
-	void load2(ExactSearcher2* exactSearcher) ;
-	void loadCN2(ExactSearcher2* exactSearcher);
+	// void load2(ExactSearcher2* exactSearcher) ;
+	// void loadCN2(ExactSearcher2* exactSearcher);
 
 private:
 	ui coloring_csr(const ui *vs, const ui vs_size, const ui original_size, ui *color, char *vis, const ui start_idx, const ui start_color) ;
@@ -204,6 +201,136 @@ private:
 	void store_a_larger_clique(const ui clique_size, const char *info, char print);
 };
 
+class HeuriSearcher{
+public:
+	int n;
+	int m;
+	int* pstart;
+	int* edges;
+    int k; //total missing edges
+    int LB; // the lowerbound
+    int UB; // the upperbound
+	// vector<int> &KDC;
+
+    // int* PC;
+    // int* PC_rid;// to record the positon in PC of each vertex v of G
+    // int P_end;// the P is from PC[0] to PC[P_end-1]
+    // int C_end;// the C is from PC[P_end] to PC[C_end-1]
+
+    // int* neiInP;// to record every vertex's degree in P
+    // int* neiInG;// to record every vertex's degree in C
+    // int MEInP;// the missing edges in P 
+    // int MEInG;// the missing edges in C
+
+	// Your code
+	void search(){}
+};
+
+class colorPacker
+{
+private:
+	/* data */
+public:
+	int n;// the length of the color vector
+	int *colLab;//the color of the element in color vector
+	vector<vector<int>> AdjList;
+	vector<int> vChose;
+	bool *colMtx;
+	int colorNum;
+
+
+	colorPacker(std::vector<std::vector<bool>>& MuEx, int *colVec, int ColSz, int n_);
+	void coloring();
+	int colPack(int *colVec, int colSz ,int *neiInP,int P_end,int threshold);
+	~colorPacker();
+};
+
+colorPacker::colorPacker(std::vector<std::vector<bool>>& MuEx, int *colVec, int ColSz, int n_)
+{
+	for (int i = 0; i < ColSz; i++)
+	{
+		int u=colVec[i];
+		if(u<0){
+			printf("u: %d, i: %d, sz: %d\n",u, i, ColSz);
+			exit(0);
+		}
+#ifdef _DBUG_
+		assert(u>=0);
+		assert(u<n_);
+#endif
+	}
+	
+	n=ColSz;
+	colorNum=0;
+	AdjList.resize(n);
+	//construct the graph
+	for (int i = 0; i < ColSz; i++){
+		int u=colVec[i];
+		for (int j = i+1; j < ColSz; j++){
+			int v=colVec[j];
+#ifdef _DBUG_
+			assert(u<n_ && u>=0);
+			assert(v<n_ && v>=0);
+#endif
+			// printf("u: %d, v: %d, muex[u][v]: %d\n", u,v,MuEx[u][v]);
+			if(!MuEx[u][v]) AdjList[i].push_back(j);
+		}
+	}
+	colMtx=new bool[n*n];
+	memset(colMtx,false, n*n*sizeof(bool));
+	colLab=new int[n];
+	memset(colLab,0, n*sizeof(int));
+}
+
+void colorPacker::coloring(){
+	int maxCol=-1;
+	// do the coloring
+
+	for (int i = 0; i < n; i++){
+		int col=0;
+		while (colMtx[n*i+col]) col++;
+		if(col>maxCol) {
+			maxCol=col;
+			vChose.push_back(i);
+		}
+		colLab[i]=col;
+		for (auto j:AdjList[i]) colMtx[n*j+col]=true;
+		// vChose.push_back(i);
+	}
+	// colorNum=maxCol+1;
+	return;
+}
+int colorPacker::colPack(int *colVec, int colSz ,int *neiInP,int P_end,int threshold){
+	int choseNum=0;
+	int mssEdge=0;
+	for (int i = 0; i < vChose.size(); i++)
+	{
+		int u=colVec[vChose[i]];
+		if(mssEdge+i+(P_end-neiInP[u])<=threshold) choseNum++;
+		else break;
+		mssEdge+=(i+P_end-neiInP[u]);
+	}
+	
+	return choseNum;
+}
+colorPacker::~colorPacker()
+{
+	n=0;
+	if(colLab!=NULL){
+		delete[] colLab;
+		colLab=NULL;
+	}
+	if(AdjList.size()>0){
+		AdjList.clear();
+	}
+	if(!vChose.empty())
+		vChose.clear();
+	if(colMtx!=NULL){
+		delete[] colMtx;
+		colMtx=NULL;
+	}
+}
+
 class ExactSearcher{
 public:
 	int n;
@@ -217,33 +344,36 @@ public:
 
     int* PC;
     int* PC_rid;// to record the positon in PC of each vertex v of G
-    int P_end;// the P is from PC[0] to PC[P_end-1], used to enumerate defective set
-    int C_end;// the C is from PC[P_end] to PC[C_end-1], represent R_{d}
-	int CX_end;//the CX is from PC[C_end] to PC[CX_end-1], represent R_{0}, is the candidate set for clique
+    int P_end;// the P is from PC[0] to PC[P_end-1]
+    int C_end;// the C is from PC[P_end] to PC[C_end-1]
+
+	int CX_end;//the CX is from PC[C_end] to PC[CX_end-1]
 
     int* neiInP;// to record every vertex's degree in P
     int* neiInG;// to record every vertex's degree in G
 	int* neiInC; // to record every vertex's degree in C
 	bool* matrix;
+	// int MEC2P;//the missing edges between P and C
+	// int MEInCX;// the missing edges in CX
     int MEInP;// the missing edges in P 
     int MEInC;// the missing edges in C
 	int MEInCCX; //the missing edges in C∪CX
     int MEInG;// the missing edges in G
 	int MEInPC;// the missing edges in P∪C
 	int *colB;// the bucket of the vertex of each color
-	int CNColNum;// the color number of common neighbors
+	int *CNCol;//
+	int CNColNum;
 
 	long long treeIdx;
 	
-	int *colorLabel;// color label, begin from 0
+	int *colorLabel;
 	int *colorUse;
 	int *colorSz;
 	int *colorSzCX;
 	int *colorIdx;
 	int *colorUseMtx;
+	int *colorTols;
 	int *weight;
-	int *weightBucket;
-	vector<vector<int>> nonNeiInPB;//used to bucket-sort the vertices by nonNeiInP 
 	bool *colCX; //判定CX中的点有没有被染色
 	int *colVecC;
 	int *colVecCX;
@@ -255,6 +385,9 @@ public:
 	int *include_level;
 	int *peel_level;
 	int *restore_set;//0代表P, 1代表C, 2代表CX, 3代表X 
+	vector<int> removed_v;
+	vector<int> peeled_v; // the vertex moved from C to CX
+	vector<int> include_v;
 	//the first pair: vertex or edge, the second pair: the move track, the third ele: if adjacent
 	vector<tuple<pair<int,int>, pair<int,int>, int>> move_record;
 	queue<int> Qv;
@@ -263,23 +396,24 @@ public:
 	bool enable;//! to control the second order reduction
 	bool usecsr;//! use csr
 	bool usemtx;//! use mtx
+	bool useOld;
 	bool useNew;
 	bool delEdge=true;
 	vector<vector<int>> CmNei;//记录点对之间的公共邻居
 	vector<vector<bool>> MuEx;//记录是否互斥
+	vector<pair<int, int>> removed_edges;
+	vector<pair<int,int>> exclusive_pairs;
 	queue<pair<int,int>> Qe;
 
 #endif
 #ifdef DPBOUND
 	int *dp;//dp[c,k]表示从前c种颜色集合中允许k条负边的情况下从C种最多拿多少个点
 	int *t;//t[c,k]表示从第c种颜色的集合中允许最多k条负边的情况下从C中最多拿多少个点
+	int *CP;//CP[c,x]表示从前c中颜色的集合中拿x个点负度之和的最小值
+	int *cp;//cp[c,x]表示从第c中颜色的集合中拿x个点负度之和的最小值
 	//根据动态规划思想，我们有dp[c,k]=max {dp[c-1,k1]+t[c,k-k1]}(0<=k1<=k)
 	//动态规划的边界条件为dp[0,k]=t[0,k], 
 	// vector<vector<int>> colVec;
-
-	colorPacker *colPacker;
-	int *colExNum;
-	int totExNum;
 #endif
 	int control=0;
 #ifdef _DBUG_
@@ -309,6 +443,7 @@ public:
 	void CalcuCmNei();
 
 	bool edgePrune(int u, int v);
+	void edgeDel(int level);
 	int CalcuConflict(int *colVec, int start, int end, int level);
 #endif
 	void CtoP(int u, int level);
@@ -331,7 +466,7 @@ public:
 	bool vertexCmp(int u, int v);
 
 	int bound(int neis);
-	int candiBucket();
+	int candiBucket2();
 #ifdef DPBOUND
 	// int& DP(int c,int r){ return dp[c*n+r];}
 	// int& T(int c, int r){return t[c*n+r];}
@@ -339,13 +474,11 @@ public:
 	int Changbd4newBB();
 	int dpcolorbd();
 	int dpcolorbd4DSetBB();
+	int dpcolorbd4DSetBB2();
 	void PrintColoring();
-	int complexBound();
+	int dpcolorbd4DSetBBFast1(int PUB);
+	int dpcolorbd4DSetBBFast2(int PUB);
 	bool bound();
-	int PackingBound();
-	int ColorBound();
-	int ColorPackingBD();
-	int CLUB();
 #endif
 	void store(int newLB);
 
@@ -353,6 +486,7 @@ public:
 	int chooseVertex();
 	void degreeSumPrune(int level);
 	void colorBasedPrune(int level);
+	void colorPackingPrune(int level);
 
 	bool includeV(int level, int PUB);
 	void peelVertices(int level);
@@ -361,7 +495,9 @@ public:
 
 
 	void removeNonCN(int level);
-	void recover(int level, int oldSz);
+	void recover(int level, int old_removed_v_end, int old_peeled_V_end, int old_include_v_end, int old_ex_end, int old_removed_edges_end);
+	void recoverNew(int level, int oldSz);
+	void restoreVE(int level, int old_removeV_end);
 	void printPos(int u);
 	bool existSatV();
 	bool isDSet();
@@ -376,7 +512,6 @@ ExactSearcher::ExactSearcher(int _k, int _n, vector<pair<int,int>> &_vp, vector<
 		m=_vp.size();
 		k=_k;
 		LB=_KDC.size();
-		// LB=k+2;
 		UB=_UB;
 
 		pstart=new int[n+1];
@@ -393,15 +528,18 @@ ExactSearcher::ExactSearcher(int _k, int _n, vector<pair<int,int>> &_vp, vector<
 		colorSz = new int[n];
 		colorIdx = new int [n];
 		colorUseMtx = new int[n*n];
+		colorTols = new int[n];
 		colB = new int[n*n];
 		colCX = new bool[n];
 		colVecC = new int[n*n];
 		colVecCX = new int[n*n];
 		colorSzCX = new int[n];
+		CNCol = new int[n];
 		CNColNum=0;
 		colNum=0;
 		fill(colVecC, colVecC+n*n, -1);
 		fill(colVecCX, colVecCX+n*n, -1);
+		fill(CNCol, CNCol+n,-1);
 		memset(colorSzCX, 0, n*sizeof(int));
 		weight = new int[n];
 		//removing vertices
@@ -410,20 +548,17 @@ ExactSearcher::ExactSearcher(int _k, int _n, vector<pair<int,int>> &_vp, vector<
 		peel_level=new int[n];
 		restore_set = new int[n];
 		// P_UB=2*k+1;//the upper bound of P is initialize as 2*k+1
-		nonNeiInPB.resize(k+1);
 #ifdef DPBOUND
 		dp =new int[n*n];
 		t = new int[n*n];
+		CP = new int[n*n];
+		cp = new int[n*n];
 		// colVec.resize(n);
-		colPacker=new colorPacker(n);
-		colExNum=new int[n];
-		weightBucket=new int[n+k];
 #endif
 		P_end=0; C_end=n;treeIdx=0;
-		CX_end=C_end; totExNum=0;
+		CX_end=C_end;
 		memset(matrix,0,sizeof(bool)*n*n);
 		memset(neiInP,0,sizeof(int)*n);
-		memset(colExNum,0,n*sizeof(int));
 		fill(colorLabel,colorLabel+n,-1);
 		fill(colorIdx,colorIdx+n,-1);
 		fill(colorUseMtx, colorUseMtx+n*n,-1);
@@ -434,19 +569,21 @@ ExactSearcher::ExactSearcher(int _k, int _n, vector<pair<int,int>> &_vp, vector<
 		fill(restore_set, restore_set+n, 1);
 		memset(colorSz,0,n*sizeof(int));
 		memset(colorUse,0,n*sizeof(int));
+		memset(colorTols,0,n*sizeof(n));
 		memset(weight, 0, sizeof(int)*n);
-		memset(weightBucket,0, (n+k)*sizeof(int));
 		memset(colCX, false, n*sizeof(bool));
 #ifdef _SECOND_ORDER_REDUCTION_
 		//!   test flag
 		enable=false;
 		usecsr=true;
 		usemtx=false;
+		useOld=true;//用之前的move_record
 		useNew=false;//用当前的move_record
 
 
 		usecsr=false;
 		usemtx=true;
+		useOld=false;
 		useNew=true;
 		enable=true;
 		// delEdge=false;
@@ -462,6 +599,8 @@ ExactSearcher::ExactSearcher(int _k, int _n, vector<pair<int,int>> &_vp, vector<
 #ifdef DPBOUND
 		memset(dp, 0, n*n*sizeof(int));
 		memset(t, 0, n*n*sizeof(int));
+		fill(CP, CP+n*n, INT32_MAX);
+		fill(cp, cp+n*n, INT32_MAX);
 #endif
 		for(auto pr : _vp){
 			int u=pr.first, v=pr.second; isAdj(u,v)=isAdj(v,u)=true;
@@ -499,7 +638,9 @@ ExactSearcher::ExactSearcher(int _k, int _n, vector<pair<int,int>> &_vp, vector<
 					}
 					
 				}
+				
 			}
+			
 		}
 #ifdef _DBUG_
 		P_rcd.resize(n);
@@ -534,21 +675,22 @@ ExactSearcher::~ExactSearcher(){
 	delete[] colVecC;
 	delete[] colVecCX;
 	delete[] colorSzCX;
+	delete[] CNCol;
 	delete[] weight;
-	if(weightBucket!=NULL){
-		delete[] weightBucket;
-		weightBucket=NULL;
-	}
-	if(!nonNeiInPB.empty()) nonNeiInPB.clear();
 	//vertex removing
 	delete[] remove_level;
 	delete[] peel_level;
 	delete[] include_level;
+	removed_v.clear();
+	peeled_v.clear();
+	include_v.clear();
 	while(!Qv.empty()) Qv.pop();
 	while(!Qex.empty()) Qex.pop();
 #ifdef _SECOND_ORDER_REDUCTION_
 	CmNei.clear();
 	MuEx.clear();
+	removed_edges.clear();
+	exclusive_pairs.clear();
 	while (!Qe.empty()) Qe.pop();
 	
 #endif
@@ -556,14 +698,8 @@ ExactSearcher::~ExactSearcher(){
 	// colVec.clear();
 	delete[] dp;
 	delete[] t;
-	if(colPacker!=NULL){
-		delete colPacker;
-		colPacker=NULL;
-	}
-	if(colExNum!=NULL){
-		delete[] colExNum;
-		colExNum=NULL;
-	}
+	delete[] CP;
+	delete[] cp;
 #endif
 
 #ifdef _DBUG_
@@ -584,6 +720,17 @@ bool ExactSearcher::isInC(int u){return PC_rid[u] >= P_end && PC_rid[u] < C_end;
 bool ExactSearcher::isInCX(int u){return PC_rid[u] >= C_end && PC_rid[u] < CX_end;}
 bool ExactSearcher::isInX(int u){return PC_rid[u] >= CX_end && PC_rid[u] < n;}
 int ExactSearcher::checkConinfidence(int level){
+	// int* neiInP;// to record every vertex's degree in P
+    // int* neiInG;// to record every vertex's degree in G
+	// int* neiInC; // to record every vertex's degree in C
+	// bool* matrix;
+	// int MEC2P;//the missing edges between P and C
+	// int MEInCX;// the missing edges in CX
+    // int MEInP;// the missing edges in P 
+    // int MEInC;// the missing edges in C
+	// int MEInCCX; //the missing edges in C∪CX
+    // int MEInG;// the missing edges in G
+	// int MEInPC;// the missing edges in P∪C
 	int tMEInP=0, tMEInC=0, tMEInCCX=0, tMEInPC=0, tMEInG=0;
 	for (int id = 0; id < CX_end; id++){
 		int u=PC[id];
@@ -709,7 +856,12 @@ void ExactSearcher::CalcuCmNei(){
 }
 
 bool ExactSearcher::edgePrune(int u, int v){
+#ifdef _DBUG_
+	// assert(isInC(u));
+	// assert(isInC(v));
+#endif
 	int cn=0;
+	
 	int e=(isAdj(u,v)==true)?0:1;
 	if(!enable){
 		for (int i = P_end; i < CX_end; i++)	{
@@ -723,15 +875,12 @@ bool ExactSearcher::edgePrune(int u, int v){
 	}
 	// assert(cn==CmNei[u][v]);
 	int ub=P_end+2+cn+(k-MEInP-(P_end-neiInP[u]+P_end-neiInP[v])-e);
-	// ub=n;
 	int Ruv=k-(MEInP+P_end-neiInP[u]+P_end-neiInP[v])-e;
 	if(isInP(u)&&!isInP(v)){
 		ub=P_end+1+cn+(k-MEInP-(P_end-neiInP[v]));
-		// ub=n;
 		Ruv=k-(MEInP+P_end-neiInP[v]);
 	}else if(!isInP(u)&&isInP(v)){
 		ub=P_end+1+cn+(k-MEInP-(P_end-neiInP[u]));
-		// ub=n;
 		Ruv=k-(MEInP+P_end-neiInP[u]);
 	}else if(isInP(u) && isInP(v)){
 		ub=P_end+cn+(k-MEInP);
@@ -772,6 +921,13 @@ bool ExactSearcher::CtoPwithPrune(int u, int level){
 	MEInC-=nonadj_inC;
 	//renew the MEInCCX
 	MEInCCX-=nonadj_inCCX;
+	if(usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInP[v]++, neiInC[v]--;
+		}
+	}
 	if(usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -793,6 +949,29 @@ bool ExactSearcher::CtoPwithPrune(int u, int level){
 		unei.clear();
 	}
 	//delete the exclusive vertices
+	for (int i = P_end; i < C_end;){
+		int v=PC[i];
+		if(MuEx[u][v] && remove_level[v]==n) {
+			remove_level[v]=level;
+			restore_set[v]=1;
+			// Qv.push(u);
+			removed_v.push_back(v);
+			CtoX(v,level);
+		}
+		else i++;
+	}
+
+	for (int i = C_end; i < CX_end;){
+		int v=PC[i];
+		if(MuEx[u][v] && remove_level[v]==n) {
+			remove_level[v]=level;
+			restore_set[v]=2;
+			// Qv.push(u);
+			removed_v.push_back(v);
+			CXtoX(v,level);
+		}
+		else i++;
+	}
 #ifdef _CHECK_COIN_
 	if(checkConinfidence(level)==-1){
 		printf("subNum: %d, level: %d, error in CtoPwithPrune end\n",subNum, level);
@@ -833,6 +1012,13 @@ void ExactSearcher::CtoP(int u, int level){
 	MEInC-=nonadj_inC;
 	//renew the MEInCCX
 	MEInCCX-=nonadj_inCCX;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++) {
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInP[v]++, neiInC[v]--;
+		}
+	}
 	if (usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -892,6 +1078,13 @@ void ExactSearcher::PtoC(int u, int level){
 	MEInP-=nonadj_inP;
 	MEInC+=nonadj_inC;
 	MEInCCX+=nonadj_inCCX;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++) {
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInP[v]--, neiInC[v]++;
+		}
+	}
 	if (usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -944,6 +1137,14 @@ void ExactSearcher::PtoCX(int u, int level){
 	MEInP -= nonadj_inP;
 	MEInPC -= nonadj_inPC;
 	MEInCCX += nonadj_inCCX;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInP[v]--;
+
+		}
+	}
 	if (usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -1006,6 +1207,13 @@ void ExactSearcher::CXtoC(int u, int level){
 	int nonadj_InPC = (C_end - 1) - (neiInP[u] + neiInC[u]);
 	MEInC += nonadj_InC;
 	MEInPC += nonadj_InPC;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInC[v]++;
+		}
+	}
 	if (usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -1044,6 +1252,13 @@ void ExactSearcher::CtoCX(int u, int level){
 	int nonadj_InPC = C_end - (neiInP[u]+neiInC[u]);
 	MEInC += nonadj_InC;
 	MEInPC += nonadj_InPC;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInC[v]--;
+		}
+	}
 	if (usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -1085,6 +1300,13 @@ void ExactSearcher::CtoX(int u, int level){
 	MEInPC -= nonadj_inPC;
 	MEInG -= nonadj_inG;
 	MEInCCX -= nonadj_inCCX;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInC[v]--, neiInG[v]--;
+		}
+	}
 	if(usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -1133,6 +1355,13 @@ void ExactSearcher::XtoC(int u,int level){
 	MEInPC += nonadj_inPC;
 	MEInG += nonadj_inG;
 	MEInCCX += nonadj_inCCX;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInC[v]++, neiInG[v]++;
+		}
+	}
 	if (usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -1177,6 +1406,13 @@ void ExactSearcher::CXtoX(int u, int level){
 	int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
 	MEInG -= nonadj_inG;
 	MEInCCX -= nonadj_inCCX;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInG[v]--;
+		}
+	}
 	if (usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -1220,6 +1456,13 @@ void ExactSearcher::XtoCX(int u, int level){
 	int nonadj_inCCX = (CX_end - P_end - 1)-(neiInG[u] - neiInP[u]);
 	MEInG += nonadj_inG;
 	MEInCCX += nonadj_inCCX;
+	if (usecsr){
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			int v=edges[i];
+			if(!isAdj(u,v)) continue;
+			neiInG[v]++;
+		}
+	}
 	if (usemtx){
 		vector<int> unei;
 		for (int i = 0; i < CX_end; i++){
@@ -1250,6 +1493,9 @@ void ExactSearcher::XtoCX(int u, int level){
 void ExactSearcher::DSetBranch(int level, int P_UB){
 	// printf("enter dsetbranch\n");
 	int PUB = min(P_UB, P_end+2*(k-MEInP));
+	int old_removeV_end=removed_v.size(), old_removeV_end2=removed_v.size();
+	int old_include_v_end=include_v.size(), old_peel_v_end=peeled_v.size();
+	int old_ex_end=exclusive_pairs.size(), old_removeE_end=removed_edges.size();
 	bool useInclude=true;
 	bool usePeel=false;
 	int oldSz=move_record.size();
@@ -1289,20 +1535,36 @@ void ExactSearcher::DSetBranch(int level, int P_UB){
 			if(removeVE(level)) goto REC;
 		}else goto REC;
 	}
-	// if(MEInP>k){goto REC;}
-	// if(existSatV()) goto REC;
-	// if(CX_end<=LB){goto REC;}
-	if(MEInP>k || existSatV()|| CX_end<=LB){
-		goto REC;
-	}
+
+
+	if(MEInP>k){goto REC;}
+	if(existSatV()) goto REC;
+	if(CX_end<=LB){goto REC;}
 	if(P_end>LB) {store(P_end);}
 	if(MEInG <= k){store(CX_end); goto REC;}
 #ifdef DPBOUND
+	// if(dpcolorbd2()<=LB) {colorBndPrune++; goto REC;}
+	// if(Changbd4newBB()<=LB) {colorBndPrune++; goto REC;}
+	
+	// if(dpcolorbd4DSetBB()<=LB) {colorBndPrune++; goto REC;}
+	// if(dpcolorbd4DSetBB2()<=LB) {colorBndPrune++; goto REC;}
+	// fill(colorUseMtx, colorUseMtx+n*n,-1);
+	// if(dpcolorbd4DSetBBFast1(PUB)<=LB) {colorBndPrune++; goto REC;}
+	if(dpcolorbd4DSetBBFast2(PUB)<=LB) {colorBndPrune++; goto REC;}
+	// if(bound()){goto REC;}
+	// if(candiBucket2()<=LB) { goto REC;}
 
-	if(complexBound()<=LB) {colorBndPrune++; goto REC;}
-	// if(CLUB()<=LB) {colorBndPrune++; goto REC;}
+	//计算每组独立集中的冲突组数量
+	// for (int c = 0; c < this->colNum; c++){
+	// 	int conf=CalcuConflict(colVecC, n*c, n*c+colorSz[c],level);
+	// 	colMuExSum+=conf;
+	// 	maxColMuNum=max(maxColMuNum,conf);
+	// }
 	
 #endif
+	// degreeSumPrune(level);
+	colorBasedPrune(level);//CtoX, CXtoX
+	// colorPackingPrune(level);
 	tree_cnt++;
 	int u;
 	if (judgeDsetFull(PUB)){
@@ -1312,6 +1574,7 @@ void ExactSearcher::DSetBranch(int level, int P_UB){
 		goto REC;
 	}
 	u=chooseVertex();//pick a vertex u from C
+	old_removeV_end2=removed_v.size();
 	oldSz2=move_record.size();
 	while (!Qe.empty()) Qe.pop();
 	assert(Qv.empty());
@@ -1327,7 +1590,7 @@ void ExactSearcher::DSetBranch(int level, int P_UB){
 	control=1;
 	DSetBranch(level+1, PUB);
 	if(false){
-		recover(level, oldSz2);
+		recoverNew(level, oldSz2);
 	}
 	PtoCX(u,level);//PtoCX(0,2)
 
@@ -1339,8 +1602,11 @@ void ExactSearcher::DSetBranch(int level, int P_UB){
 	}
 	// CXtoC(u,level);//CXtoC
 REC:
+	if(useOld){
+		recover(level,old_removeV_end,old_peel_v_end,old_include_v_end,old_ex_end,old_removeE_end);
+	}
 	if(useNew){
-		recover(level, oldSz);
+		recoverNew(level, oldSz);
 	}
 }
 void ExactSearcher::search(){
@@ -1349,6 +1615,9 @@ void ExactSearcher::search(){
 	subNum++;
 	double curDense=double(this->m/(n*(n-1)/2+0.0001));
 	avgSubDense=((subNum-1)*avgSubDense+curDense)/subNum;
+	if(subNum==1){
+		int a=0;
+	}
 	collectRemovedEV(0);
 	removeVE(0);
 	if(isInX(0)) return;
@@ -1365,6 +1634,9 @@ bool ExactSearcher::includeV(int level, int PUB){
 		if(neiInG[u]==CX_end-2 && neiInP[u]==P_end-1 && MEInP<k) {
 			include_level[u]= level;
 			// restore_set[u]=1;
+			if(useOld){
+				include_v.push_back(u);
+			}
 			CtoP(u, level);
 			if(useNew){
 				tuple<pair<int,int>,pair<int,int>,int> t(make_pair(-1,u), make_pair(1,0),-1);
@@ -1376,6 +1648,37 @@ bool ExactSearcher::includeV(int level, int PUB){
 		if (judgeDsetFull(PUB)) return true;
 	}
 	
+	for (int i = P_end; i < C_end; i++){
+		int u = PC[i];
+		if(neiInG[u]==CX_end-2 && neiInP[u]==P_end && MEInP<k){
+			int v = edges[pstart[u]];
+			if(isInC(v) && neiInG[v]==CX_end-2){
+				include_level[u]= level;
+				// restore_set[u]=1;
+				if(useOld){
+					include_v.push_back(u);
+				}
+				CtoP(u, level);
+				if(useNew){
+					tuple<pair<int,int>,pair<int,int>,int> t(make_pair(-1,u), make_pair(1,0),-1);
+					move_record.push_back(t);
+				}
+				if (judgeDsetFull(PUB)) return true;
+				include_level[v]= level;
+				// restore_set[v]=1;
+				if(useOld){
+					include_v.push_back(v);
+				}
+				CtoP(v, level);
+				if(useNew){
+					tuple<pair<int,int>,pair<int,int>,int> t(make_pair(-1,v), make_pair(1,0),-1);
+					move_record.push_back(t);
+				}
+				if (judgeDsetFull(PUB)) return true;
+			}
+		}
+	}
+	
 	return false;
 }
 void ExactSearcher::peelVertices(int level){
@@ -1385,6 +1688,9 @@ void ExactSearcher::peelVertices(int level){
 			// remove_level[u]=level;
 			peel_level[u]=level;
 			// restore_set[u]=1;
+			if(useOld){
+				peeled_v.push_back(u);
+			}
 			if(useNew){
 				tuple<pair<int,int>, pair<int,int>, int> t=make_tuple(make_pair(-1,u),make_pair(1,2),-1);
 				// auto a=get<0>(t);
@@ -1396,7 +1702,7 @@ void ExactSearcher::peelVertices(int level){
 	}
 }
 bool ExactSearcher::collectRemovedEV(int level){
-	bool check=true;
+	bool check=false;
 	if(check){
 		//check the degree in P
 		for (int i = 0; i < P_end; i++){
@@ -1425,6 +1731,13 @@ bool ExactSearcher::collectRemovedEV(int level){
 			// removed_v.push_back(u);
 			// CtoX(u);
 		}
+		// if(P_end>0){
+		// 	if (MuEx[PC[P_end-1]][u]&& remove_level[u] == n){
+		// 		remove_level[u]=level;
+		// 		restore_set[u]=1;
+		// 		Qv.push(u);
+		// 	}
+		// }
 		if(enable){
 			// if(remove_level[u]<=level) continue;
 			for (int j = 0; j < P_end; j++){
@@ -1448,6 +1761,13 @@ bool ExactSearcher::collectRemovedEV(int level){
 			// removed_v.push_back(u);
 			// CXtoX(u);
 		}
+		// if(P_end>0){
+		// 	if (MuEx[PC[P_end-1]][u]&& remove_level[u] == n){
+		// 		remove_level[u]=level;
+		// 		restore_set[u]=2;
+		// 		Qv.push(u);
+		// 	}
+		// }
 		if(enable){
 			// if(remove_level[u]<=level) continue;
 			for (int j = 0; j < P_end; j++){
@@ -1479,9 +1799,6 @@ bool ExactSearcher::collectRemovedEV(int level){
 			}
 		}
 	}
-	// if(subNum==5 && treeIdx==3){
-	// 	int a=1;
-	// }
 	double dense=(double)MuExNum/((C_end-P_end)*(C_end-P_end-1)/2+0.001);
 	if(C_end-P_end>=5)denSum+=dense,denNum++;
 	// denSum+=dense; denNum++;
@@ -1507,7 +1824,9 @@ bool ExactSearcher::removeVE(int level){
 		//test
 		long long ttsz=0;
 		
-		while (!Qv.empty() || !Qe.empty())
+		if(enable){
+
+			while (!Qv.empty() || !Qe.empty())
 			{
 				while (!Qv.empty()){
 					int u=Qv.front();
@@ -1527,6 +1846,26 @@ bool ExactSearcher::removeVE(int level){
 						MEInPC -= nonadj_inPC;
 						MEInG -= nonadj_inG;
 						MEInCCX -= nonadj_inCCX;
+						if(usecsr){
+							for (int i = pstart[u]; i < pstart[u+1]; i++){
+								int v=edges[i];
+								if(!isAdj(u,v)) continue;
+								neiInC[v]--, neiInG[v]--;
+								if(recurDel){
+									if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+										if(isInC(v)){
+											Qv.push(v);
+											remove_level[v]=level;
+											restore_set[v]=1;
+										}else if(isInCX(v)){
+											Qv.push(v);
+											remove_level[v]=level;
+											restore_set[v]=2;
+										}
+									}
+								}
+							}
+						}
 						if(usemtx){
 							vector<int> unei;
 							unei.clear();
@@ -1541,6 +1880,9 @@ bool ExactSearcher::removeVE(int level){
 								if(recurDel){
 									if(isInP(v)){
 										if(P_end+neiInG[v]-neiInP[v]+(k-MEInP)<=LB){
+											// printf("enter deg terminate, u: %d, v: %d\n", u,v);
+											//debug
+											// printf("u_0 neiInC: %d\n", neiInC[0]);
 											terminate=true;
 										}
 									}
@@ -1638,6 +1980,24 @@ bool ExactSearcher::removeVE(int level){
 						int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
 						MEInG -= nonadj_inG;
 						MEInCCX -= nonadj_inCCX;
+						if(usecsr){
+							for (int i = pstart[u]; i < pstart[u+1]; i++){
+								int v=edges[i];
+								if(!isAdj(u,v)) continue;
+								neiInG[v]--;
+								if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+									if(isInC(v)){
+										Qv.push(v);
+										remove_level[v]=level;
+										restore_set[v]=1;
+									}else if(isInCX(v)){
+										Qv.push(v);
+										remove_level[v]=level;
+										restore_set[v]=2;
+									}
+								}
+							}
+						}
 						if (usemtx){
 							vector<int> unei;
 							for (int i = 0; i < CX_end; i++){
@@ -1650,6 +2010,9 @@ bool ExactSearcher::removeVE(int level){
 								if(recurDel){
 									if(isInP(v)){
 										if(P_end+neiInG[v]-neiInP[v]+(k-MEInP)<=LB){
+											// printf("enter deg terminate, u: %d, v: %d\n", u,v);
+											//debug
+											// printf("u_0 neiInC: %d\n", neiInC[0]);
 											terminate=true;
 										}
 									}else if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
@@ -1675,6 +2038,7 @@ bool ExactSearcher::removeVE(int level){
 									int v=unei[i];
 									neiInG[v]++;
 								}
+								// printf("u_0 neiInC: %d\n", neiInC[0]);
 								goto CHECK;
 								// return terminate;// return true;
 							}
@@ -1822,20 +2186,20 @@ bool ExactSearcher::removeVE(int level){
 							if(edgePrune(v1,v3)){
 								if(!isInP(v1) && !isInP(v3)){
 									Qe.push(make_pair(v1,v3));
-								}else if(isInP(v1) && !isInP(v3)){
-									if(remove_level[v3]>level){
-										remove_level[v3]=level;
-										Qv.push(v3);
-										if(isInC(v3)) restore_set[v3]=1;
-										else restore_set[v3]=2;
-									}
-								}else if(!isInP(v1) && isInP(v3)){
-									if(remove_level[v1]>level){
-										remove_level[v1]=level;
-										Qv.push(v1);
-										if(isInC(v1)) restore_set[v1]=1;
-										else restore_set[v1]=2;
-									}
+								}
+							}else if(isInP(v1) && !isInP(v3)){
+								if(remove_level[v3]>level){
+									remove_level[v3]=level;
+									Qv.push(v3);
+									if(isInC(v3)) restore_set[v3]=1;
+									else restore_set[v3]=2;
+								}
+							}else if(!isInP(v1) && isInP(v3)){
+								if(remove_level[v1]>level){
+									remove_level[v1]=level;
+									Qv.push(v1);
+									if(isInC(v1)) restore_set[v1]=1;
+									else restore_set[v1]=2;
 								}
 							}
 						}
@@ -1859,6 +2223,7 @@ bool ExactSearcher::removeVE(int level){
 				}
 			}
 			
+		}
 	}
 
 CHECK:
@@ -1871,7 +2236,145 @@ CHECK:
 	u_neis.clear();
 	return terminate;
 }
-void ExactSearcher::recover(int level, int oldSz){
+void ExactSearcher::recover(int level, int old_removed_v_end, int old_peeled_V_end, int old_include_v_end, int old_ex_end, int old_removed_edges_end){
+	
+#ifdef _CHECK_COIN_
+	if(checkConinfidence(level)==-1){
+		printf("subNum: %d, level: %d, error in recover begin\n", subNum, level);
+		exit(0);
+	}
+#endif
+	
+	while (!Qe.empty()) Qe.pop();
+	while (!Qex.empty()) Qex.pop();
+	
+	
+	
+	for (int i = removed_v.size(); i > old_removed_v_end; i--){
+		int u = removed_v.back();
+		// if (remove_level[u]!=level) break;
+		remove_level[u] = n;
+		if(restore_set[u]==2) XtoCX(u, level);
+		else if(restore_set[u]==1) XtoC(u, level); 
+		removed_v.pop_back();
+	}
+	
+	for (int i = peeled_v.size(); i > old_peeled_V_end; i--){
+		int u = peeled_v.back();
+		// if(peel_level[u]!=level) break;
+		peel_level[u]=n;
+		// assert(restore_set[u]==1);
+		// if(restore_set[u]==1) CXtoC(u, level);
+		CXtoC(u, level);
+		peeled_v.pop_back();
+	}
+	
+	for (int i = include_v.size(); i > old_include_v_end; i--){
+		int u = include_v.back();
+		include_level[u]=n;
+		// if (restore_set[u]==1) PtoC(u, level);
+		PtoC(u, level);
+		include_v.pop_back();
+	}
+#ifdef _REMOVE_EDGES_
+	for (int i = removed_edges.size(); i > old_removed_edges_end; i--){
+		int v1=removed_edges.back().first, v2=removed_edges.back().second;
+		removed_edges.pop_back();
+		if(isAdj(v1,v2)) continue;
+		if(!(isInC(v1)&&isInC(v2))){
+			printf("subNum: %d, level: %d, treeIdx: %d\n",subNum, level, treeIdx);
+			printf("v1 pos: %d, v2 pos:  %d\n",PC_rid[v1], PC_rid[v2]);
+			printf("P_end: %d, C_end: %d, CX_end: %d\n",P_end, C_end, CX_end);
+			exit(0);
+		}
+		assert(isInC(v1)&&isInC(v2));
+		isAdj(v1,v2)=isAdj(v2,v1)=true;
+		neiInG[v1]++, neiInG[v2]++;
+		neiInC[v1]++, neiInC[v2]++;
+		MEInC--, MEInCCX--, MEInPC--, MEInG--;
+	}
+#endif
+	for (int i = exclusive_pairs.size(); i > old_ex_end; i--){
+		int v1=exclusive_pairs.back().first, v2=exclusive_pairs.back().second;
+		exclusive_pairs.pop_back();
+		if(!MuEx[v1][v2]) continue;
+		MuEx[v1][v2]=MuEx[v2][v1]=false;
+	}
+
+#ifdef _CHECK_COIN_
+	if(checkConinfidence(level)==-1){
+		printf("subNum: %d, level: %d, error in recover end\n", subNum, level);
+		exit(0);
+	}
+#endif
+
+#ifdef _DBUG_
+	vector<int> P_rcv;
+	vector<int> C_rcv;
+	vector<int> CX_rcv;
+
+	int MEInPRcv=MEInP;
+	int MEInCRcv=MEInC;
+	int MEInGRcv=MEInG;
+	int MEInPCRcv=MEInPC;
+	int MEInCCXRcv=MEInCCX;
+
+	if(MEInPRcd[level]!=MEInPRcv){
+		printf("recover err\n");
+		exit(0);
+	}
+	if(MEInCRcd[level]!=MEInCRcv){
+		printf("recover err\n");
+		exit(0);
+	}
+	if(MEInPCRcd[level]!=MEInPCRcv){
+		printf("recover err\n");
+		exit(0);
+	}
+	if(MEInCCXRcd[level]!=MEInCCXRcv){
+		printf("recover err\n");
+		exit(0);
+	}
+	if(MEInGRcd[level]!=MEInGRcv){
+		printf("recover err\n");
+		exit(0);
+	}
+
+	vecPush(P_rcv,PC,0,P_end);
+	vecPush(C_rcv,PC,P_end,C_end);
+	vecPush(CX_rcv,PC,C_end, CX_end);
+	if(!vecCmp(P_rcd[level], P_rcv)){
+		printf("subNum: %d, level: %d\n",subNum, level);
+	}
+	assert(vecCmp(P_rcd[level], P_rcv));
+	if(!vecCmp(C_rcd[level], C_rcv)){
+		printf("subNum: %d, level: %d\n",subNum, level);
+	}
+	assert(vecCmp(C_rcd[level], C_rcv));
+	if(!vecCmp(CX_rcd[level], CX_rcv)){
+		printf("subNum: %d, level: %d\n",subNum, level);
+	}
+	assert(vecCmp(CX_rcd[level], CX_rcv));
+	P_rcv.clear();
+	C_rcv.clear();
+ 	CX_rcv.clear();
+
+#endif
+	// for (int i = remove; i > count; i--)
+	// {
+	// 	/* code */
+	// }
+	
+	// for (int i = 0; i < n; i++) MuEx[i].resize(n,false);
+	// for (int i = 0; i < n; i++) fill(MuEx[i].begin(),MuEx[i].end(),false);
+	// for (int i = 0; i < n; i++){
+	// 	for (int j = 0; j < n; j++) assert(MuEx[i][j]==false);
+	// }
+	
+	//recover the cmNei
+	// for (int i = 0; i < n; i++) CmNei[i].resize(n,0);
+}
+void ExactSearcher::recoverNew(int level, int oldSz){
 #ifdef _CHECK_COIN_
 	if(checkConinfidence(level)==-1){
 		printf("subNum: %d, level: %d, error in recover begin\n", subNum, level);
@@ -2024,6 +2527,11 @@ void ExactSearcher::removeNonCN(int level){//去除CX中不是P的公共邻居�
 		int u = PC[i];
 		if (neiInP[u]<P_end && remove_level[u]==n){
 			remove_level[u]=level;
+			if(useOld){
+				restore_set[u] = 1;
+				// Qv.push(u);
+				removed_v.push_back(u);
+			}
 			CtoX(u, level);
 			if (useNew){
 				tuple<pair<int,int>, pair<int,int>, int > t(make_pair(-1, u), make_pair(1,3),-1);
@@ -2038,6 +2546,11 @@ void ExactSearcher::removeNonCN(int level){//去除CX中不是P的公共邻居�
 		int u = PC[i];
 		if (neiInP[u]<P_end && remove_level[u]==n){
 			remove_level[u]=level;
+			if(useOld){
+				restore_set[u] = 2;
+				// Qv.push(u);
+				removed_v.push_back(u);
+			}
 			CXtoX(u, level);
 			if(useNew){
 				tuple<pair<int,int>, pair<int,int>, int > t(make_pair(-1, u), make_pair(2,3),-1);
@@ -2047,11 +2560,20 @@ void ExactSearcher::removeNonCN(int level){//去除CX中不是P的公共邻居�
 		else i++;
 	}
 }
+void ExactSearcher::restoreVE(int level, int old_removeV_end){
+	for (int i = removed_v.size(); i > old_removeV_end; i--){
+		int u=removed_v.back();
+		remove_level[u] = n;
+		if(restore_set[u]==2) XtoCX(u, level);
+		else if(restore_set[u]==1) XtoC(u, level); 
+		removed_v.pop_back();
+	}
+}
 
 bool ExactSearcher::judgeDsetFull(int P_UB){
 	// printf("enter judgedestfull\n");
 	bool flag=false;
-	if (MEInP==k || (MEInPC==MEInP) ||P_end==C_end ||P_end>=P_UB||P_end == 2*k+1 ){//P_end==C_end can be deleted
+	if (MEInP==k || (MEInPC==MEInP) ||P_end==C_end ||P_end>=P_UB||P_end == 2*k+1 ){
 		flag = true;
 	}
 	// printf("exit judgedsetfull\n");
@@ -2060,12 +2582,11 @@ bool ExactSearcher::judgeDsetFull(int P_UB){
 int ExactSearcher::bound(int neis){
 	return min(P_end+neis+(k-MEInP),UB);
 }
-int ExactSearcher::candiBucket(){
+int ExactSearcher::candiBucket2(){
 	int CMax=0, kCur=k-MEInP;
 	vector<vector<int>> nonNeiBucket(kCur+1);
 	for (int i = P_end; i < CX_end; i++){
 		int u=PC[i];
-		if(P_end-neiInG[u]>kCur) continue;
 		nonNeiBucket[P_end-neiInP[u]].push_back(u);
 	}
 	for (int i = 0; i <= kCur; i++){
@@ -2080,223 +2601,7 @@ RET:
 	nonNeiBucket.clear();
 	return P_end+CMax;
 }
-int ExactSearcher::PackingBound(){
-	int CMax=0, kCur=k-MEInP;
-	vector<int> nonNeiBucket(kCur+1);
-	for (int i = P_end; i < CX_end; i++){
-		int u=PC[i];
-		if(P_end-neiInG[u]>kCur) continue;
-		nonNeiBucket[P_end-neiInP[u]]++;
-	}
-	for (int i = 0; i <= kCur; i++){
-		if(kCur-i*nonNeiBucket[i]>=0) CMax+=nonNeiBucket[i], kCur-=i*nonNeiBucket[i];
-		else{CMax+=kCur/i;break;}
-	}
-RET:
-	nonNeiBucket.clear();
-	return P_end+CMax;
-}
-int ExactSearcher::ColorPackingBD(){
-	int MaxNum=0, colorNum=0, maxNonDeg=0, maxWeight=0;//MaxNum- max num of chosen from C; 
-	// totExNum=0;
-	int kCur=k-MEInP, maxCol=-1, col=0;
 
-	for (int i = P_end; i < C_end; i++){
-		int u=PC[i];
-		if(P_end-neiInP[u]>kCur) continue;
-		// assert(P_end-neiInP[u]>0);
-		nonNeiInPB[P_end-neiInP[u]].push_back(u);
-		maxNonDeg=max(maxNonDeg, P_end-neiInP[u]);
-	}
-
-	//color CX first
-	for (int i = C_end; i < CX_end; i++){
-		int u=PC[i];
-		if(P_end>neiInP[u]) continue;
-		col=0;
-		while (colorUseMtx[u*n+col]==treeIdx) col++;
-		if(col>maxCol) maxCol=col, colorSz[maxCol]=0;
-		colVecC[n*col+colorSz[col]]=u;
-		colorSz[col]++;
-		//maintain the color use
-		for (int j = P_end; j < CX_end; j++){
-			if(isAdj(u,PC[j])) colorUseMtx[n*PC[j]+col]=treeIdx;
-		}
-		colorLabel[u]=col;
-	}
-
-	//color C second
-	for (int d = 0; d <= maxNonDeg; d++){
-		for(auto u:nonNeiInPB[d]){
-			col=0;
-			while (colorUseMtx[u*n+col]==treeIdx) col++;
-			if(col>maxCol) maxCol=col, colorSz[maxCol]=0;
-			colVecC[n*col+colorSz[col]]=u;
-			colorSz[col]++;
-			for (int j = P_end; j < C_end; j++){
-				if(isAdj(u,PC[j])) colorUseMtx[n*PC[j]+col]=treeIdx;
-			}
-			colorLabel[u]=col;
-		}
-	}
-	colorNum=maxCol+1;
-
-	for(int c = 0; c<=maxCol; c++){
-		int sz=0,ws=0;//ws-weight sum
-		for(int k1=0; k1<=kCur; k1++){
-			//compute the sz
-			for (int i = 0; i < colorSz[c]; i++){
-				int u=colVecC[c*n+i];
-				ws+=i+P_end-neiInP[u];
-				if(ws<=k1) sz++;
-			}
-			t[c*n+k1]=sz;
-			ws=0, sz=0;
-		}
-	}
-
-	// init DP(0,*)
-	for (int i = 0; i <= kCur; i++){
-		dp[0*n+i]=t[0*n+i];
-	}
-	//do the dynamic programming
-	for (int c = 1; c <= maxCol; c++){
-		for (int k1 = 0; k1 <= kCur; k1++){	
-			dp[c*n+k1]=0;
-			for (int k2 = 0; k2 <= k1; k2++){
-				dp[c*n+k1]=max(dp[c*n+k1],dp[(c-1)*n+k2]+t[c*n+(k1-k2)]);
-				if(dp[c*n+k1]>LB-P_end){MaxNum=n;goto CLEAR;}
-			}
-		}
-	}
-	MaxNum=dp[maxCol*n+kCur];
-CLEAR:
-	for (int d = 0; d<= maxNonDeg; d++) nonNeiInPB[d].clear();// clear the nonNeiInPB
-	memset(weightBucket,0, (maxWeight+1)*sizeof(int));
-	return P_end+MaxNum;
-}
-int ExactSearcher::ColorBound(){
-		int C_max = 0, k_cur=k-MEInP; int maxCol=0;
-		int i; int cnt=0;
-		colorSz[0]=0;int col=0;
-		//color CX first
-		for (int i = C_end; i < CX_end; i++){
-			int u=PC[i];
-			if(P_end>neiInP[u]) continue;
-			col=0;
-			while (colorUseMtx[u*n+col]==treeIdx) col++;
-			if(col>maxCol) maxCol=col, colorSz[maxCol]=0;
-			colVecC[n*col+colorSz[col]]=u;
-			colorSz[col]++;
-			//maintain the color use
-			for (int j = P_end; j < CX_end; j++){
-				if(isAdj(u,PC[j])) colorUseMtx[n*PC[j]+col]=treeIdx;
-			}
-			colorLabel[u]=col;
-		}
-
-		//color C second
-		for (int i = P_end; i < C_end; i++){
-			col=0;
-			int u=PC[i];
-			while (colorUseMtx[u*n+col]==treeIdx) col++;
-			if(col>maxCol) maxCol=col, colorSz[maxCol]=0;
-			colVecC[n*col+colorSz[col]]=u;
-			colorSz[col]++;
-			for (int j = P_end; j < C_end; j++){
-				if(isAdj(u,PC[j])) colorUseMtx[n*PC[j]+col]=treeIdx;
-			}
-			colorLabel[u]=col;
-		}
-		
-	// colorNum=maxCol+1;
-
-		while( k_cur>= cnt) {
-			for(int j=0;j<=maxCol;j++){
-				if(colorSz[j]>0 && k_cur>=cnt){
-					k_cur-=cnt;
-					--colorSz[j];
-					++C_max;
-				}
-			}
-			++cnt;
-		}
-		return P_end+C_max;
-
-}
-int ExactSearcher::CLUB(){
-	int MaxNum=0, colorNum=0, maxNonDeg=0, maxWeight=0;//MaxNum- max num of chosen from C; 
-	// int maxBucket=0, curBsz=0;
-	// vector<bool> vis;
-	// totExNum=0;
-	int kCur=k-MEInP, maxCol=0, col=0;
-	colorSz[0]=0;
-	for (int i = P_end; i < CX_end; i++){
-		int u=PC[i];
-		if(P_end-neiInP[u]>kCur) continue;
-		// assert(P_end-neiInP[u]>0);
-		nonNeiInPB[P_end-neiInP[u]].push_back(u);
-		maxNonDeg=max(maxNonDeg, P_end-neiInP[u]);
-		// maxBucket=(maxBucket<nonNeiInPB[P_end-neiInP[u]].size()?nonNeiInPB[P_end-neiInP[u]].size():maxBucket);
-	}
-	// vis.resize(maxBucket, false);
-
-	//先算一遍candibound
-	for (int i = 0; i <= maxNonDeg; i++){
-		if(kCur-i*nonNeiInPB[i].size()>=0) MaxNum+=nonNeiInPB[i].size(), kCur-=i*nonNeiInPB[i].size();
-		else{MaxNum+=kCur/i;break;}
-	}
-	if(P_end+MaxNum<=LB) goto CLEAR;
-
-	MaxNum=0, kCur=k-MEInP;
-	//对每个桶依次图染色
-	for (int i = 0; i <= maxNonDeg; i++){
-		//对第i个桶染色
-		int remain=nonNeiInPB[i].size(), initW=i;
-		for (int j = 0; j < nonNeiInPB[i].size(); j++){
-			int u=nonNeiInPB[i][j];bool flag=false;
-			//遍历color_set[0]~color_set[maxCol]
-			col=0;
-			while(col<=maxCol){
-				//遍历color_set[col]
-				for (int id = 0; id < colorSz[col]; id++){
-					int v=colVecC[n*col+id];
-					if(isAdj(u,v)){col++,flag=true;break;}
-				}
-				if(!flag) break;
-				flag=false;
-			}
-			if(col>maxCol){
-				maxCol=col;
-				colorSz[maxCol]=0;
-			}
-			colVecC[n*col+colorSz[col]]=u;
-			colorSz[col]++;
-		}
-		colorNum=maxCol+1;
-		//put the weight into the weight-bucket
-		while(remain>0){
-			weightBucket[initW]+=min(colorNum, remain);
-			remain-=colorNum;
-			maxWeight=max(maxWeight,initW);
-			initW++;
-		}
-		maxCol=0, colorSz[0]=0,colorNum=0;//reset
-	}
-	//桶排序求解MaxNum
-	for (int w = 0; w <= maxWeight; w++){
-		if(kCur-w*weightBucket[w]>=0) MaxNum+=weightBucket[w], kCur-=w*weightBucket[w];
-		else {
-			MaxNum+=kCur/w;
-			break;
-		}
-	}
-	
-CLEAR:
-	for (int d = 0; d<= maxNonDeg; d++) nonNeiInPB[d].clear();// clear the nonNeiInPB
-	memset(weightBucket,0, (maxWeight+1)*sizeof(int));
-	return P_end+MaxNum;
-}
 int ExactSearcher::Changbd4newBB(){
 	int CMax=0, kCur=k-MEInP;
 	// int maxCol=0;colorSz[0]=0;colVec[0].clear();
@@ -2317,6 +2622,15 @@ int ExactSearcher::Changbd4newBB(){
 			if(col>maxCol){
 				maxCol=max(maxCol,col);
 				colorSz[maxCol]=0;
+			}
+			
+			if(usecsr){
+				for (int j = pstart[u]; j < pstart[u+1]; j++){
+					int nei=edges[j];
+					if(MuEx[u][nei]) continue;
+					if(!isAdj(u,nei)) continue;
+					colorUseMtx[nei*n+col]=treeIdx;
+				}
 			}
 			if(usemtx){
 				for (int i = P_end; i < CX_end; i++){
@@ -2346,148 +2660,204 @@ int ExactSearcher::Changbd4newBB(){
 	weiBucket.clear();
 	return P_end+CMax;
 }
-int ExactSearcher::complexBound(){
-	int MaxNum=0, colorNum=0, maxNonDeg=0, maxWeight=0;//MaxNum- max num of chosen from C; 
-	totExNum=0;
-	int kCur=k-MEInP, maxCol=-1, col=0;
-	bool useGroupColor=false;
-	//use bucket to collect the vertices in C
-	for (int i = P_end; i < C_end; i++){
-		int u=PC[i];
-		if(P_end-neiInP[u]>kCur) continue;
-		// assert(P_end-neiInP[u]>0);
-		nonNeiInPB[P_end-neiInP[u]].push_back(u);
-		maxNonDeg=max(maxNonDeg, P_end-neiInP[u]);
+int ExactSearcher::dpcolorbd4DSetBBFast1(int PUB){
+	// printf("enter dpcolorbound\n");
+	int CMax=0, kCur=k-MEInP;
+	int maxCol=-1;//colorSz这里记录C中染该种颜色点的个数
+	vector<vector<int>> nonNeiBucket(kCur+1);
+	for (int i = P_end; i < C_end; i++){//将C中的点放入桶中，方便排序
+		int u= PC[i];
+		nonNeiBucket[P_end-neiInP[u]].push_back(u);
 	}
-	
-	//color CX first
-	for (int i = C_end; i < CX_end; i++){
-		int u=PC[i];
-		if(P_end>neiInP[u]) continue;
-		col=0;
-		while (colorUseMtx[u*n+col]==treeIdx) col++;
-		if(col>maxCol) maxCol=col, colorSz[maxCol]=0, colorSzCX[maxCol]=0, colExNum[maxCol]=0;
-		colVecCX[n*col + colorSzCX[col]]=u;
-		colorSzCX[col]++;
-		totExNum+=colorSzCX[col]-1;// sum the exclusive pairs
-		//maintain the color use
-		for (int j = P_end; j < CX_end; j++){
-			if(isAdj(u,PC[j])) colorUseMtx[n*PC[j]+col]=treeIdx;
-		}
-		colorLabel[u]=col;
-	}
-	
-	//then color C
-	for (int d = 0; d <= maxNonDeg; d++){
-		for(auto u:nonNeiInPB[d]){
-			col=0;
-			while (colorUseMtx[u*n+col]==treeIdx) col++;
-			if(col>maxCol) maxCol=col, colorSz[maxCol]=0, colorSzCX[maxCol]=0, colExNum[maxCol]=0;
+	for (int i = 0;i <= kCur; i++){
+		for (auto u:nonNeiBucket[i]){
+			int col=0;
+			while(colorUseMtx[u*n+col]==treeIdx) col++;
+
+			if(col>maxCol){
+				maxCol=max(maxCol,col);
+				colorSz[maxCol] = 0;
+				colorSzCX[col]=0;
+				colCX[maxCol] = false;
+				colB[n*col]=P_end-neiInP[u];
+			}
 			colVecC[n*col+colorSz[col]]=u;
 			colorSz[col]++;
-			totExNum+=colorSzCX[col];
-			for (int j = 0; j < colorSz[col]-1; j++){
-				//计算总的互斥对个数以及每种颜色的互斥对个数
-				if(MuEx[u][colVecC[n*col+j]]) totExNum++, colExNum[col]++;
-			}
-			for (int j = P_end; j < C_end; j++){
-				if(isAdj(u,PC[j])) colorUseMtx[n*PC[j]+col]=treeIdx;
+			maxColSz=max(maxColSz, colorSz[col]);
+			if(colorSz[col]>1) colB[n*col+colorSz[col]-1] = colB[n*col+colorSz[col]-2]+(P_end - neiInP[u])+colorSz[col]-1;
+			for (int j = pstart[u]; j < pstart[u+1]; j++){
+				int nei=edges[j];
+				// if(MuEx[u][nei]) continue;
+				if(!isAdj(u,nei)) continue;
+				colorUseMtx[nei*n+col]=treeIdx;
 			}
 			colorLabel[u]=col;
 		}
 	}
-	colorNum=maxCol+1;
-	//为每个点赋予权重
-	for (int c = 0; c <= maxCol; c++){
-		//first assign weight for the CX
-		for (int i = 0; i < colorSzCX[c]; i++){
-			int u=colVecCX[n*c+i];
-			weight[u]=P_end-neiInP[u]+i;
-			maxWeight=max(weight[u],maxWeight);
-			weightBucket[weight[u]]++;
-		}
-		//then assign weight for the C
-		for (int i = 0; i < colorSz[c]; i++){
-			int u=colVecC[n*c+i];
-			weight[u]=P_end-neiInP[u]+colorSzCX[c]+i;
-			maxWeight=max(maxWeight, weight[u]);
-			weightBucket[weight[u]]++;
-		}
-	}
-	//利用weight求上界
-	for (int w = 0; w <= maxWeight; w++){
-		if(kCur-w*weightBucket[w]>=0) MaxNum+=weightBucket[w], kCur-=w*weightBucket[w];
-		else {
-			MaxNum+=kCur/w;
-			break;
-		}
-	}
-	if(P_end+MaxNum<=LB) goto CLEAR;
+	int maxColC=maxCol;
+	colNum=maxCol+1;
+	
+	//首先对CX中的点进行染色
+	for(int id=C_end; id<CX_end; id++){
+		int u=PC[id];
+		int col=0;
+		while(colorUseMtx[u*n+col]==treeIdx) col++;
+		if(col > maxCol) maxCol=col, colorSz[maxCol]=0, colB[n*col]=0, colorSzCX[col]=0;
 
-	if(totExNum>0||true){
-		kCur=k-MEInP;
-		//init t(c,x)
-		for(int c = 0; c<=maxCol; c++){
-			int sz=0,ws=0;//ws-weight sum
-			if(colExNum[c]>0) useGroupColor=true;
-			if(useGroupColor){
-				int* colvec=colVecC+n*c;
-				colPacker->set(MuEx, colvec, colorSz[c]);
-				colPacker->coloring(colvec,neiInP, P_end);
-				for(int k1=0; k1<=kCur; k1++){
-					t[c*n+k1]=colorSzCX[c]>0?1:0;
-					//compute the sz
-					sz=colPacker->colPack(colvec, colorSz[c], neiInP, P_end, k1);
-					t[c*n+k1]=max(t[c*n+k1],sz);
-					ws=0, sz=0;
-				}
-				colPacker->reset();
-				sz=0;
-			}else{
-				for(int k1=0; k1<=kCur; k1++){
-					t[c*n+k1]=colorSzCX[c]>0?1:0;
-					//compute the sz
-					for (int i = 0; i < colorSz[c]; i++){
-						int u=colVecC[c*n+i];
-						ws+=i+P_end-neiInP[u];
-						if(ws<=k1) sz++;
-					}
-					t[c*n+k1]=max(t[c*n+k1],sz);
-					ws=0, sz=0;
-				}
-			}
-			useGroupColor=false;
+		colVecCX[n*col + colorSzCX[col]]=u;
+		colorSzCX[col]++;
+		colCX[col] = true;
+		for (int j = pstart[u]; j < pstart[u+1]; j++){
+			int nei=edges[j];
+			// if(MuEx[u][nei]) continue;
+			if(!isAdj(u,nei)) continue;
+			colorUseMtx[nei*n+col]=treeIdx;
 		}
-
-		// init DP(0,*)
-		for (int i = 0; i <= kCur; i++){
-			dp[0*n+i]=t[0*n+i];
-			// DP(0,i)=T(0,i);
-		}
-		//do the dynamic programming
-		for (int c = 1; c <= maxCol; c++){
-			for (int k1 = 0; k1 <= kCur; k1++){	
-				dp[c*n+k1]=0;
-				for (int k2 = 0; k2 <= k1; k2++){
-					dp[c*n+k1]=max(dp[c*n+k1],dp[(c-1)*n+k2]+t[c*n+(k1-k2)]);
-					// if(dp[c*n+k1]>LB-P_end){MaxNum=n;goto CLEAR;}
-				}
+		colorLabel[u]=col;
+	}
+	//这部分是对C集合染色
+	colNum=maxCol+1;
+	// init the t(c,k)(k≥1)
+	for(int c = 0; c<=maxCol; c++){
+		int sz=0;
+		for(int k1=0; k1<=kCur; k1++){
+			// int pre=t[c*n+k1], next=0;
+			t[c*n+k1] = (1 && colCX[c]);
+			sz = colorSz[c];
+			while (sz>0 ){
+				if(k1 < colB[n*c+sz-1]) sz--;
+				else {t[c*n+k1]=sz;break;}
 			}
 		}
-		// MaxNum=min(MaxNum, dp[maxCol*n+kCur]);
 	}
-	// MaxNum=dp[maxCol*n+kCur];
-	if(MaxNum<dp[maxCol*n+kCur]){
-		printf("error\n");
-		exit(0);
+
+	// init DP(0,*)
+	for (int i = 0; i <= kCur; i++){
+		dp[0*n+i]=t[0*n+i];
+		// DP(0,i)=T(0,i);
 	}
-CLEAR:
-	for (int d = 0; d<= maxNonDeg; d++) nonNeiInPB[d].clear();// clear the nonNeiInPB
-	memset(weightBucket,0, (maxWeight+1)*sizeof(int));
-	return P_end+MaxNum;
-	// memset()
+	//do the dynamic programming
+	for (int c = 1; c <= maxCol; c++){
+		for (int k1 = 0; k1 <= kCur; k1++){	
+			dp[c*n+k1]=0;
+			for (int k2 = 0; k2 <= k1; k2++){
+				dp[c*n+k1]=max(dp[c*n+k1],dp[(c-1)*n+k2]+t[c*n+(k1-k2)]);
+			}
+		}
+	}
+	CMax=dp[maxCol*n+kCur];
+	nonNeiBucket.clear();
+	return P_end+CMax;
 }
-bool ExactSearcher::bound(){//a simple upper bound
+
+int ExactSearcher::dpcolorbd4DSetBBFast2(int PUB){
+	// printf("enter dpcolorbound\n");
+	int CMax=0, kCur=k-MEInP;
+	int maxCol=-1;//colorSz这里记录C中染该种颜色点的个数
+	vector<vector<int>> nonNeiBucket(kCur+1);
+	for (int i = P_end; i < C_end; i++){//将C中的点放入桶中，方便排序
+		int u= PC[i];
+		if(P_end-neiInP[u]>kCur) continue;
+		nonNeiBucket[P_end-neiInP[u]].push_back(u);
+	}
+	for (int i = 0;i <= kCur; i++){
+		for (auto u:nonNeiBucket[i]){
+			int col=0;
+			while(colorUseMtx[u*n+col]==treeIdx) col++;
+
+			if(col>maxCol){
+				maxCol=max(maxCol,col);
+				colorSz[maxCol] = 0;
+				colorSzCX[col]=0;
+				colCX[maxCol] = false;
+				colB[n*col]=P_end-neiInP[u];
+			}
+			colVecC[n*col+colorSz[col]]=u;
+			colorSz[col]++;
+			maxColSz=max(maxColSz, colorSz[col]);
+			if(colorSz[col]>1) colB[n*col+colorSz[col]-1] = colB[n*col+colorSz[col]-2]+(P_end - neiInP[u])+colorSz[col]-1;
+			if (!usecsr){
+				for (int j = pstart[u]; j < pstart[u+1]; j++){
+					int nei=edges[j];
+					if(MuEx[u][nei]) continue;
+					if(!isAdj(u,nei)) continue;
+					colorUseMtx[nei*n+col]=treeIdx;
+				}
+			}
+			if (!usemtx){
+				for (int i = P_end; i < CX_end; i++){
+					int v=PC[i];
+					// if(isAdj(u,v) ) colorUseMtx[v*n+col]=treeIdx;
+					if(isAdj(u,v) && !MuEx[u][v]) colorUseMtx[v*n+col]=treeIdx;
+				}
+			}
+			
+			colorLabel[u]=col;
+		}
+	}
+	int maxColC=maxCol;
+	colNum=maxCol+1;
+	
+	//之后对CX中的点进行染色
+	for(int id=C_end; id<CX_end; id++){
+		int u=PC[id];
+		int col=0;
+		while(colorUseMtx[u*n+col]==treeIdx) col++;
+		if(col > maxCol) maxCol=col, colorSz[maxCol]=0, colB[n*col]=0, colorSzCX[col]=0;
+
+		colVecCX[n*col + colorSzCX[col]]=u;
+		colorSzCX[col]++;
+		colCX[col] = true;
+		if(!usecsr){
+			for (int j = pstart[u]; j < pstart[u+1]; j++){
+				int nei=edges[j];
+				if(MuEx[u][nei]) continue;
+				if(!isAdj(u,nei)) continue;
+				colorUseMtx[nei*n+col]=treeIdx;
+			}
+		}
+		if (!usemtx){
+			for (int i = C_end; i < CX_end; i++){
+				int v=PC[i];
+				// if(isAdj(u,v)) colorUseMtx[v*n+col]=treeIdx;
+				if(isAdj(u,v) && !MuEx[u][v]) colorUseMtx[v*n+col]=treeIdx;
+			}
+		}
+		colorLabel[u]=col;
+	}
+	colNum=maxCol+1;
+	for(int c = 0; c<=maxCol; c++){
+		int sz=0;
+		int *colvec=colVecC+c*n;
+		colorPacker* colpacker=new colorPacker(MuEx,colvec, this->colorSz[c], this->n);
+		colpacker->coloring();
+		for(int k1=0; k1<=kCur; k1++){
+			// int pre=t[c*n+k1], next=0;
+			t[c*n+k1] = (1 && colCX[c]);
+			sz=colpacker->colPack(colvec,colorSz[c],neiInP, P_end, k1);
+			t[c*n+k1]=max(t[c*n+k1],sz);
+		}
+	}
+
+	// init DP(0,*)
+	for (int i = 0; i <= kCur; i++){
+		dp[0*n+i]=t[0*n+i];
+		// DP(0,i)=T(0,i);
+	}
+	//do the dynamic programming
+	for (int c = 1; c <= maxCol; c++){
+		for (int k1 = 0; k1 <= kCur; k1++){	
+			dp[c*n+k1]=0;
+			for (int k2 = 0; k2 <= k1; k2++){
+				dp[c*n+k1]=max(dp[c*n+k1],dp[(c-1)*n+k2]+t[c*n+(k1-k2)]);
+			}
+		}
+	}
+	CMax=dp[maxCol*n+kCur];
+	nonNeiBucket.clear();
+	return P_end+CMax;
+}
+bool ExactSearcher::bound(){
 	int neis=0;
 	for (int i = P_end; i < CX_end; i++){
 		int v=PC[i];
@@ -2504,7 +2874,6 @@ int ExactSearcher::dpcolorbd(){
 	for (int i = P_end; i < CX_end; i++){
 		int u= PC[i];
 		assert(u<=n);
-		if(P_end-neiInP[u]>kCur) continue;
 		if (neiInP[u]>P_end || P_end-neiInP[u]>kCur){
 			printf("subNum: %d, treeIdx: %d\n", subNum,treeIdx);
 			printPos(u);
@@ -2513,7 +2882,7 @@ int ExactSearcher::dpcolorbd(){
 		assert(neiInP[u]<=P_end && P_end-neiInP[u]<=kCur);
 		nonNeiBucket[P_end-neiInP[u]].push_back(u);
 	}
-	//这部分是对C∪CX集合染色
+	//这部分是对C集合染色
 
 	for (int i = 0;i <= kCur; i++){
 		for (auto u:nonNeiBucket[i]){
@@ -2666,7 +3035,97 @@ int ExactSearcher::dpcolorbd4DSetBB(){
 	nonNeiBucket.clear();
 	return P_end+CMax;
 }
+int ExactSearcher::dpcolorbd4DSetBB2(){
+	// printf("enter dpcolorbound\n");
+	int CMax=0, kCur=k-MEInP;
+	// int maxCol=0;colorSz[0]=0;colVec[0].clear();
+	int maxCol=0;colorSz[0]=0;//colorSz这里记录C中染该种颜色点的个数
+	vector<vector<int>> nonNeiBucket(kCur+1);
+	for (int c = 0; c < n; c++)	t[c*n]=0;//将T(c,0)初始化为0
+	
+	for (int i = P_end; i < C_end; i++){//将C中的点放入桶中，方便排序
+		int u= PC[i];
+		nonNeiBucket[P_end-neiInP[u]].push_back(u);
+	}
+	for (int i = 0;i <= kCur; i++){
+		for (auto u:nonNeiBucket[i]){
+			int col=0;
+			while(colorUseMtx[u*n+col]==treeIdx) col++;
+			if(col ==0 && neiInP[u]==P_end) t[col*n]=1;
+			if(col>maxCol){
+				if (neiInP[u]==P_end) t[col*n]=1;
+				maxCol=max(maxCol,col);
+				colorSz[maxCol]=0;
+				// colB[n*col]=i;
+			}
+			// colB[n*col+colorSz[col]] = i;
+			colorSz[col]++;
+			for (int j = pstart[u]; j < pstart[u+1]; j++){
+				int nei=edges[j];
+				if(!isAdj(u,nei)) continue;
+				colorUseMtx[nei*n+col]=treeIdx;
+			}
+			colorLabel[u]=col;
+		}
+	}
+	//首先对CX中的点进行染色
+	for(int id=C_end; id<CX_end; id++){
+		int u=PC[id];
+		int col=0;
+		while(colorUseMtx[u*n+col]==treeIdx) col++;
+		if(col > maxCol) maxCol=col, colorSz[maxCol]=0;
+		// colorSz[col]++;
+		for (int j = pstart[u]; j < pstart[u+1]; j++){
+			int nei=edges[j];
+			if(!isAdj(u,nei)) continue;
+			colorUseMtx[nei*n+col]=treeIdx;
+		}
+		colorLabel[u]=col;
+		// T(col, 0)=1;
+		t[col*n]=1;
+	}
+	//这部分是对C集合染色
 
+	vector<vector<int>> vecCol2(maxCol+1);
+	for (int i = 0;i <= kCur; i++){
+		for (auto u:nonNeiBucket[i]){
+			int labu=colorLabel[u];
+			vecCol2[labu].push_back(u);
+		}
+	}
+	//init the t(c,k)
+	for(int c=0; c<=maxCol; c++){//对每个染色集合, 求
+		int missSum;
+		for (int k1 = 1; k1 <= kCur; k1++){
+			t[c*n+k1]=0, missSum=0, colorSz[c]=0;
+			// T(c,k1)=0, missSum=0, colorSz[c]=0;
+			for(auto u: vecCol2[c]){
+				colorSz[c]++;//每次取出一个点评估时取出的点数++
+				missSum+=(P_end-neiInP[u])+(colorSz[c]-1);//missSum加上P中负度和当前选定的点不连的边数
+				if(k1>=missSum) t[c*n+k1]++;
+			}
+			if (k1>0) t[c*n+k1] = max(t[c*n+k1], t[c*n+k1-1]);
+		}
+	}
+	// init DP(0,*)
+	for (int i = 0; i <= kCur; i++){
+		dp[0*n+i]=t[0*n+i];
+		// DP(0,i)=T(0,i);
+	}
+	//do the dynamic programming
+	for (int c = 1; c <= maxCol; c++){
+		for (int k1 = 0; k1 <= kCur; k1++){	
+			dp[c*n+k1]=0;
+			for (int k2 = 0; k2 <= k1; k2++){
+				dp[c*n+k1]=max(dp[c*n+k1],dp[(c-1)*n+k2]+t[c*n+(k1-k2)]);
+			}
+		}
+	}
+	CMax=dp[maxCol*n+kCur];
+	vecCol2.clear();
+	nonNeiBucket.clear();
+	return P_end+CMax;
+}
 void ExactSearcher::PrintColoring(){
 	//print the color num
 	printf("C_num=%d, CX_num=%d, colorNum=%d\n",C_end-P_end, CX_end-C_end,colNum);
@@ -2702,6 +3161,7 @@ void ExactSearcher::store(int newLB){
 	for (int i = 0; i < LB; i++) KDC[i]=PC[i];
 }
 void ExactSearcher::maxClique4CN(){
+	// printf("break1\n");
 	subSearcher->loadCN(this);
 	subSearcher->search();
 	if(subSearcher->MC.size()+P_end>LB){
@@ -2709,6 +3169,7 @@ void ExactSearcher::maxClique4CN(){
 		for (int i = 0; i < P_end; i++) KDC[i]=PC[i];
 		for (int i = 0; i < subSearcher->MC.size(); i++) KDC[i+P_end]=PC[subSearcher->MC[i]+P_end];
 	}
+	// printf("break4\n");
 }
 bool ExactSearcher::vertexCmp(int u, int v){
 	if(neiInP[u]<neiInP[v]) return true;
@@ -2717,10 +3178,23 @@ bool ExactSearcher::vertexCmp(int u, int v){
 }
 int ExactSearcher::chooseVertex(){
 	int u = PC[P_end];
-	for(int id=P_end;id<C_end;id++){
-		int v=PC[id];
-		if(vertexCmp(v,u))u=v;
+	// for(int id=P_end;id<C_end;id++) (neiInP[u]>neiInP[PC[id]])&&(u=PC[id]);
+	if(neiInP[PC[P_end-1]]<P_end-1){
+		for(int id=P_end;id<C_end;id++){
+			int v=PC[id];
+			if(vertexCmp(v,u))u=v;
+		}
+	}else{
+		for(int id=P_end;id<C_end;id++){
+			int v=PC[id];
+			if(isAdj(v, PC[P_end-1])) continue;
+			if(isAdj(u, PC[P_end-1])) u=v;
+			else{
+				if(vertexCmp(v,u))u=v;
+			}
+		}
 	}
+	
 	return u;
 }
 void ExactSearcher::degreeSumPrune(int level){
@@ -2740,7 +3214,7 @@ void ExactSearcher::degreeSumPrune(int level){
 			else if(i > kCur - degSum){
 				remove_level[u]=level;
 				restore_set[u]=1;
-				// removed_v.push_back(u);
+				removed_v.push_back(u);
 				CtoX(u,level);
 			}
 		}
@@ -2775,6 +3249,10 @@ void ExactSearcher::colorBasedPrune(int level){
 			if(id < LB) weiSum+=w, id++;
 			else if(P_end-neiInP[u] > k-weiSum && isInC(u)){
 				remove_level[u]=level;
+				if(useOld){
+					restore_set[u]=1;
+					removed_v.push_back(u);
+				}
 				CtoX(u,level);
 				if(useNew){
 					tuple<pair<int,int>, pair<int,int>,int> t(make_pair(-1,u),make_pair(1,3),-1);
@@ -2787,6 +3265,48 @@ void ExactSearcher::colorBasedPrune(int level){
 	colBucket.clear();
 	weiBucket.clear();
 	return;
+}
+void ExactSearcher::colorPackingPrune(int level){
+	int x = LB-P_end;
+	int weiSum = MEInP;
+	for(int c = 0; c < colNum; c++){
+		cp[c*n+0]=0;
+	}
+	for(int c = 0; c < colNum; c++){
+		if(colCX[c]) cp[c*n+1]=0;
+		else if(colorSz[c]>=1){
+			int u = colVecC[0];
+			cp[c*n+1]=P_end-neiInP[u];
+		}else cp[c*n+1]=INT32_MAX;
+	}
+	for (int c = 0; c < colNum; c++){
+		for (int i = 2; i < LB; i++){
+			if(i>colorSz[c]) cp[c*n+i]=INT32_MAX;
+			else cp[c*n+i] = colB[n*c+i-1];
+		}
+	}
+	//init CP(0,*)
+	for (int i = 0; i <= x; i++) CP[0*n+i]=cp[0*n+i];
+	
+	//do the dynamic programming
+	for (int c = 1; c < colNum; c++){
+		for (int i = 0;i <= x; i++){	
+			CP[c*n+i]=INT32_MAX;
+			for (int j = 0; j <= i; j++){
+				CP[c*n+i]=min(CP[c*n+i],CP[(c-1)*n+j]+cp[c*n+(i-j)]);
+			}
+		}
+	}
+	weiSum+=CP[(colNum-1)*n+x];
+	for (int i = P_end; i < C_end;){
+		int u = PC[i];
+		if (P_end - neiInP[u]>k-weiSum){
+			remove_level[u]=level;
+			restore_set[u]=1;
+			removed_v.push_back(u);
+			CtoX(u,level);
+		}else i++;
+	}
 }
 
 void ExactSearcher::printPos(int u){
@@ -2829,6 +3349,25 @@ void ExactSearcher::swapID(int i, int j) {
 	PC_rid[PC[i]] = i;
 	PC_rid[PC[j]] = j;
 }
+
+void ExactSearcher::edgeDel(int level){
+	int MuExNum=0;
+	for (int i = P_end; i < C_end; i++){
+		int u = PC[i];
+		for (int j = i+1; j < C_end; j++){
+			int v=PC[j];
+			if(edgePrune(u,v)) MuEx[u][v]=MuEx[v][u]=true, MuExNum++;
+		}
+	}
+	double dense=(double)MuExNum/((C_end-P_end)*(C_end-P_end-1)/2+0.001);
+	if(C_end-P_end>=5)denSum+=dense,denNum++;
+	// denSum+=dense; denNum++;
+	// printf("del density: %.2f%%\n",dense*100);
+	MaxMuExNum=max(MaxMuExNum,MuExNum);
+	MuExSum+=MuExNum;
+	// for (int i = 0; i < n; i++) MuEx[i].resize(n,false);
+}
+
 
 
 
@@ -3451,34 +3990,34 @@ RET:
 		X2C(pop_cnt); P2C(push_cnt);
 	}
 
-	void maxCliqueC(){
-		subSearcher->load2(this);
-		subSearcher->search();
-		if(subSearcher->MC.size()+P_end>LB){
-			// renew the max num of missing edges
-			maxME=max(maxME, MEInP);
-			KDC.resize(LB=subSearcher->MC.size()+P_end);
-			for (int i = 0; i < P_end; i++) KDC[i]=PC[i];
-			for (int i = 0; i < subSearcher->MC.size(); i++) KDC[i+P_end]=PC[subSearcher->MC[i]+P_end];
-		}
-	}
-	void maxClique4CN(){
-		// printf("break1\n");
-		subSearcher->loadCN2(this);
-		// printf("break2\n");
-		subSearcher->search();
-		// printf("break3\n");
-		if(subSearcher->MC.size()+P_end>LB){
-			KDC.resize(LB=subSearcher->MC.size()+P_end);
-			// if (LB==31){
-			// 	printf("enter maxClique, tree cnt:%d\n", tree_cnt);
-			// 	exit(0);
-			// }
-			for (int i = 0; i < P_end; i++) KDC[i]=PC[i];
-			for (int i = 0; i < subSearcher->MC.size(); i++) KDC[i+P_end]=PC[subSearcher->MC[i]+P_end];
-		}
-		// printf("break4\n");
-	}
+	// void maxCliqueC(){
+	// 	subSearcher->load2(this);
+	// 	subSearcher->search();
+	// 	if(subSearcher->MC.size()+P_end>LB){
+	// 		// renew the max num of missing edges
+	// 		maxME=max(maxME, MEInP);
+	// 		KDC.resize(LB=subSearcher->MC.size()+P_end);
+	// 		for (int i = 0; i < P_end; i++) KDC[i]=PC[i];
+	// 		for (int i = 0; i < subSearcher->MC.size(); i++) KDC[i+P_end]=PC[subSearcher->MC[i]+P_end];
+	// 	}
+	// }
+	// void maxClique4CN(){
+	// 	// printf("break1\n");
+	// 	subSearcher->loadCN2(this);
+	// 	// printf("break2\n");
+	// 	subSearcher->search();
+	// 	// printf("break3\n");
+	// 	if(subSearcher->MC.size()+P_end>LB){
+	// 		KDC.resize(LB=subSearcher->MC.size()+P_end);
+	// 		// if (LB==31){
+	// 		// 	printf("enter maxClique, tree cnt:%d\n", tree_cnt);
+	// 		// 	exit(0);
+	// 		// }
+	// 		for (int i = 0; i < P_end; i++) KDC[i]=PC[i];
+	// 		for (int i = 0; i < subSearcher->MC.size(); i++) KDC[i+P_end]=PC[subSearcher->MC[i]+P_end];
+	// 	}
+	// 	// printf("break4\n");
+	// }
 
 	void printPos(int u){
 		printf("P_end: %d, C_end: %d, CX_end: %d, X_end: %d\n", P_end, C_end, CX_end, n);
@@ -3618,6 +4157,39 @@ REC:
 
 };
 
+// bool ExactSearcher2::edgePrune(int u, int v){
+// 	assert(isInC(u));
+// 	assert(isInC(v));
+// 	int cn=0;
+// 	// cn=CmNei[u][v];
+// 	int e=(isAdj(u,v)==true)?0:1;
+// 	for (int i = P_end; i < CX_end; i++)	{
+// 		int w = PC[i];
+// 		// if(neiInP[w]==P_end && isAdj(u,w) && isAdj(v,w)) cn++;
+// 		if(isAdj(u,w) && isAdj(v,w)) cn++;
+// 	}
+// 	// assert(cn==CmNei[u][v]);
+// 	if (P_end+2+cn+(k-MEInP-(P_end-neiInP[u]+P_end-neiInP[v])-e)<=LB)
+// 		return true;
+// 	return false;
+// }
+// void ExactSearcher2::edgeDel(int level){
+// 	int MuExNum=0;
+// 	for (int i = P_end; i < C_end; i++){
+// 		int u = PC[i];
+// 		for (int j = i+1; j < C_end; j++){
+// 			int v=PC[j];
+// 			if(edgePrune(u,v)) MuEx[u][v]=MuEx[v][u]=true, MuExNum++;
+// 		}
+// 	}
+// 	double dense=(double)MuExNum/((C_end-P_end)*(C_end-P_end-1)/2+0.001);
+// 	if(C_end-P_end>=5)denSum+=dense,denNum++;
+// 	// denSum+=dense; denNum++;
+// 	// printf("del density: %.2f%%\n",dense*100);
+// 	MaxMuExNum=max(MaxMuExNum,MuExNum);
+// 	MuExSum+=MuExNum;
+// 	// for (int i = 0; i < n; i++) MuEx[i].resize(n,false);
+// }
 
 SubSearcher::SubSearcher() {
 	n = m = 0;
@@ -3722,70 +4294,70 @@ void SubSearcher::loadCN(ExactSearcher* exactSearcher){
 	
 }
 
-void SubSearcher::load2(ExactSearcher2* exactSearcher){
-	const int* PC=exactSearcher->PC;
-	const int P_end = exactSearcher->P_end;
-	const int C_end = exactSearcher->C_end;
-	const int EInC=(C_end-P_end)*(C_end-P_end-1)-2*(exactSearcher->MEInC);//表示C中的边数(Edges in C)
+// void SubSearcher::load2(ExactSearcher2* exactSearcher){
+// 	const int* PC=exactSearcher->PC;
+// 	const int P_end = exactSearcher->P_end;
+// 	const int C_end = exactSearcher->C_end;
+// 	const int EInC=(C_end-P_end)*(C_end-P_end-1)-2*(exactSearcher->MEInC);//表示C中的边数(Edges in C)
 
-	n=C_end-P_end, m= EInC;//点数=C中的点数, 边数等于C中的边数
-	pstart = new ept[n+1]; edges = new ui[m]; pstart[0] = 0;
+// 	n=C_end-P_end, m= EInC;//点数=C中的点数, 边数等于C中的边数
+// 	pstart = new ept[n+1]; edges = new ui[m]; pstart[0] = 0;
 	
-	int idx=0;
-	//重新存图
-	for(int i=0;i<n;++i){
-		pstart[i]=idx;	
-		for(int j=0;j<n;++j){
-			if(exactSearcher->isAdj(PC[P_end+i],PC[P_end+j])) edges[idx++]=j;
-		}
-	}
-	pstart[n]=idx;
+// 	int idx=0;
+// 	//重新存图
+// 	for(int i=0;i<n;++i){
+// 		pstart[i]=idx;	
+// 		for(int j=0;j<n;++j){
+// 			if(exactSearcher->isAdj(PC[P_end+i],PC[P_end+j])) edges[idx++]=j;
+// 		}
+// 	}
+// 	pstart[n]=idx;
 
-	MC.resize(exactSearcher->LB-P_end);
-	// printf("\tn = %d; m = %ld (undirected)\n", n, m/2);
-}
+// 	MC.resize(exactSearcher->LB-P_end);
+// 	// printf("\tn = %d; m = %ld (undirected)\n", n, m/2);
+// }
 
-void SubSearcher::loadCN2(ExactSearcher2* exactSearcher){
-	//找出P在C∪CX中的公共顶点
-	int pstartSz=sizeof(pstart)/sizeof(ept), edgeSz=sizeof(edges)/sizeof(ui);
-	// printf("pstart size: %d, edges size: %d\n", pstartSz, edgeSz);
-	const int* PC = exactSearcher->PC;
-	const int* neiInP = exactSearcher->neiInP;
-	const int P_end = exactSearcher->P_end;
-	const int CX_end = exactSearcher->CX_end;
-	const int EInCCX = (CX_end - P_end) * (CX_end - P_end - 1) - 2 * (exactSearcher->MEInCCX);
-	int idx = 0;//初始设置common neighbor的个数为0
-	this->n = CX_end - P_end; this->m = EInCCX;//子图中点的上界为|C∪CX|, 边数上界为MEInCCX
-	// this->CNeiRemap.resize(n);
-	// int cnSum=0;
-	// for (int i = P_end; i < CX_end; i++) {
-	// 	if(neiInP[PC[i]]==P_end) CNei.push_back(i-P_end), CNeiRemap[i-P_end]=cnSum, cnSum++;
-	// } 
+// void SubSearcher::loadCN2(ExactSearcher2* exactSearcher){
+// 	//找出P在C∪CX中的公共顶点
+// 	int pstartSz=sizeof(pstart)/sizeof(ept), edgeSz=sizeof(edges)/sizeof(ui);
+// 	// printf("pstart size: %d, edges size: %d\n", pstartSz, edgeSz);
+// 	const int* PC = exactSearcher->PC;
+// 	const int* neiInP = exactSearcher->neiInP;
+// 	const int P_end = exactSearcher->P_end;
+// 	const int CX_end = exactSearcher->CX_end;
+// 	const int EInCCX = (CX_end - P_end) * (CX_end - P_end - 1) - 2 * (exactSearcher->MEInCCX);
+// 	int idx = 0;//初始设置common neighbor的个数为0
+// 	this->n = CX_end - P_end; this->m = EInCCX;//子图中点的上界为|C∪CX|, 边数上界为MEInCCX
+// 	// this->CNeiRemap.resize(n);
+// 	// int cnSum=0;
+// 	// for (int i = P_end; i < CX_end; i++) {
+// 	// 	if(neiInP[PC[i]]==P_end) CNei.push_back(i-P_end), CNeiRemap[i-P_end]=cnSum, cnSum++;
+// 	// } 
 	
-	pstart = new ept[n+1]; 
-	// printf("new pstart\n");
-	// printf("m: %d\n",m);
-	if (m<0){
-		printf("P_end: %d, CX_end: %d, MEInCCX: %d\n",P_end, CX_end, exactSearcher->MEInCCX);
-	}
-	edges = new ui[m]; 
-	// printf("new edges\n");
-	pstart[0] = 0;
-	for (int i = 0; i < n; i++){
-		int u = PC[P_end + i];
-		pstart[i] = idx;
-		if (neiInP[u] < P_end) continue;
-		for (int j = 0; j < n; j++){
-			int v = PC[P_end + j];
-			if(neiInP[v] == P_end && exactSearcher->isAdj(u,v)) edges[idx++]=j;
-		}
+// 	pstart = new ept[n+1]; 
+// 	// printf("new pstart\n");
+// 	// printf("m: %d\n",m);
+// 	if (m<0){
+// 		printf("P_end: %d, CX_end: %d, MEInCCX: %d\n",P_end, CX_end, exactSearcher->MEInCCX);
+// 	}
+// 	edges = new ui[m]; 
+// 	// printf("new edges\n");
+// 	pstart[0] = 0;
+// 	for (int i = 0; i < n; i++){
+// 		int u = PC[P_end + i];
+// 		pstart[i] = idx;
+// 		if (neiInP[u] < P_end) continue;
+// 		for (int j = 0; j < n; j++){
+// 			int v = PC[P_end + j];
+// 			if(neiInP[v] == P_end && exactSearcher->isAdj(u,v)) edges[idx++]=j;
+// 		}
 		
-	}
-	pstart[n]=idx;
-	this->m=idx;//更新m的值
-	MC.resize(exactSearcher->LB-P_end);
+// 	}
+// 	pstart[n]=idx;
+// 	this->m=idx;//更新m的值
+// 	MC.resize(exactSearcher->LB-P_end);
 	
-}
+// }
 
 
 void SubSearcher::read(const char *_file) {
@@ -5699,3 +6271,184 @@ void SubSearcher::release(){
 		mapping = nullptr;
 	}
 }
+
+
+
+// int dpcolorbd4DSetBBFast(int PUB){
+// 		// printf("enter dpcolorbound\n");
+// 		int CMax=0, kCur=k-MEInP;CNColNum=0;
+// 		int maxCol=-1;//colorSz这里记录C中染该种颜色点的个数
+// 		vector<vector<int>> nonNeiBucket(kCur+1);
+// 		//check color use mtx
+// 		// printf("check colusemtx in bound\n");
+// 		// checkColUseMtx();
+		
+// 		for (int i = P_end; i < C_end; i++){//将C中的点放入桶中，方便排序
+// 			int u= PC[i];
+// 			// assert(u<=n);
+// 			// if (neiInP[u]>P_end || P_end-neiInP[u]>kCur){
+// 			// 	printf("subNum: %d, treeIdx: %d\n", subNum,treeIdx);
+// 			// 	printPos(u);
+// 			// 	printf("u:%d, P_end-neiInP[u]: %d, MEInP: %d\n", u, P_end-neiInP[u], MEInP);
+// 			// }
+// 			assert(neiInP[u]<=P_end && P_end-neiInP[u]<=kCur);
+// 			assert(u>=0 && u<n);
+// 			nonNeiBucket[P_end-neiInP[u]].push_back(u);
+// 		}
+// 		for (int i = 0;i <= kCur; i++){
+// 			for (auto u:nonNeiBucket[i]){
+// 				int col=0;
+// 				while(colorUseMtx[u*n+col]==treeIdx) col++;
+
+// 				// if(treeIdx==1 && subNum==61 && col==0){
+// 				// 	int a=1;
+// 				// 	printf("enter test\n");
+// 				// 	for (int ii = P_end; ii < C_end; ii++)
+// 				// 	{
+// 				// 		int uu=PC[ii];
+// 				// 		// printf("uu: %d", PC[ii]);
+// 				// 		printf("uu: %d, colUseMtx[%d][%d]=%d ",uu,uu, 23, colorUseMtx[uu*n+24]);
+// 				// 	}
+					
+// 				// }
+
+// 				if(col>maxCol){
+// 					maxCol=max(maxCol,col);
+// 					colorSz[maxCol] = 0;
+// 					colorSzCX[col]=0;
+// 					colCX[maxCol] = false;
+// 					colB[n*col]=P_end-neiInP[u];
+// 				}
+// 				//calculate the CNcolNum
+// 				// if(neiInP[u]==P_end){
+// 				// 	if(CNCol[col]!=treeIdx) CNCol[col]=treeIdx, CNColNum++; 
+// 				// }
+// 				assert(u>=0 && u<n);
+// 				colVecC[n*col+colorSz[col]]=u;
+// 				colorSz[col]++;
+// 				maxColSz=max(maxColSz, colorSz[col]);
+// 				if(colorSz[col]>1) colB[n*col+colorSz[col]-1] = colB[n*col+colorSz[col]-2]+(P_end - neiInP[u])+colorSz[col]-1;
+// 				for (int j = pstart[u]; j < pstart[u+1]; j++){
+// 					int nei=edges[j];
+// 					if(MuEx[u][nei]) continue;
+// 					colorUseMtx[nei*n+col]=treeIdx;
+// 				}
+// 				colorLabel[u]=col;
+// 			}
+// 		}
+// 		int maxColC=maxCol;
+// 		colNum=maxCol+1;
+// 		// if(treeIdx==1 && subNum==61) PrintColoring(),printf("test\n\n");
+		
+// 		//首先对CX中的点进行染色
+// 		for(int id=C_end; id<CX_end; id++){
+// 			int u=PC[id];
+// 			int col=0;
+// 			while(colorUseMtx[u*n+col]==treeIdx) col++;
+// 			if(col > maxCol) maxCol=col, colorSz[maxCol]=0, colB[n*col]=0, colorSzCX[col]=0;
+
+// 			// calculate the CNcolNum
+// 			// if(neiInP[u]==P_end){
+// 			// 	if(CNCol[col]!=treeIdx) CNCol[col]=treeIdx, CNColNum++; 
+// 			// }
+
+// 			colVecCX[n*col + colorSzCX[col]]=u;
+// 			colorSzCX[col]++;
+// 			colCX[col] = true;
+// 			for (int j = pstart[u]; j < pstart[u+1]; j++){
+// 				int nei=edges[j];
+// 				if(MuEx[u][nei]) continue;
+// 				colorUseMtx[nei*n+col]=treeIdx;
+// 			}
+// 			colorLabel[u]=col;
+// 		}
+// 		//这部分是对C集合染色
+// 		colNum=maxCol+1;
+		
+// 		// init the t(c,k)(k≥1)
+// 		for(int c = 0; c<=maxCol; c++){
+// 			int sz=0;
+// 			for(int k1=0; k1<=kCur; k1++){
+// 				int pre=t[c*n+k1], next=0;
+// 				t[c*n+k1] = (1 && colCX[c]);
+// 				sz = colorSz[c];
+// 				while (sz>0 ){
+// 					if(k1 < colB[n*c+sz-1]) sz--;
+// 					else {t[c*n+k1]=sz;break;}
+// 				}
+// 				if(pre!=t[c*n+k1]){
+// 					printf("treeIdx: %d, subNum: %d, k1: %d, pre: %d, next: %d\n", treeIdx, subNum, k1, pre, t[c*n+k1]);
+// 					exit(0);
+// 				}
+// 			}
+// 		}
+
+
+
+// 		// for(int c = 0; c<=maxCol; c++){
+// 		// 	int sz=0;
+// 		// 	int *colvec=colVecC+c*n;
+// 		// 	for (int i = 0; i < colorSz[c]; i++)
+// 		// 	{
+// 		// 		int uu=colVecC[n*c+i];
+// 		// 		if(uu<0){
+// 		// 			PrintColoring();
+// 		// 			printf("c: %d, sz: %d, maxCol: %d, maxColC: %d, subNum: %d, treeIdx: %d\n",c, colorSz[c], maxCol, maxColC, subNum,treeIdx);
+// 		// 			exit(0);
+// 		// 		}
+// 		// 		assert(uu<this->n && uu>=0);//bug
+// 		// 	}
+			
+// 		// 	colorPacker* colpacker=new colorPacker(MuEx,colvec, this->colorSz[c], this->n);
+// 		// 	colpacker->coloring();
+// 		// 	for(int k1=0; k1<=kCur; k1++){
+// 		// 		// int pre=t[c*n+k1], next=0;
+// 		// 		t[c*n+k1] = (1 && colCX[c]);
+// 		// 		sz=colpacker->colPack(colvec,colorSz[c],neiInP, P_end, k1);
+// 		// 		t[c*n+k1]=max(t[c*n+k1],sz);
+// 		// 	}
+// 		// }
+
+
+
+// 		// init DP(0,*)
+// 		for (int i = 0; i <= kCur; i++){
+// 			dp[0*n+i]=t[0*n+i];
+// 			// DP(0,i)=T(0,i);
+// 		}
+// 		//do the dynamic programming
+// 		for (int c = 1; c <= maxCol; c++){
+// 			for (int k1 = 0; k1 <= kCur; k1++){	
+// 				dp[c*n+k1]=0;
+// 				for (int k2 = 0; k2 <= k1; k2++){
+// 					dp[c*n+k1]=max(dp[c*n+k1],dp[(c-1)*n+k2]+t[c*n+(k1-k2)]);
+// 				}
+// 			}
+// 		}
+// 		CMax=dp[maxCol*n+kCur];
+// 		// vecCol2.clear();
+// 		nonNeiBucket.clear();
+// 		//coloring the CN of P
+// 		// maxCol=-1;
+// 		// for (int id = P_end; id < CX_end; id++){
+// 		// 	int u = PC[id];
+// 		// 	if(neiInP[u]!=P_end) continue;
+// 		// 	int col=0;
+// 		// 	while(colorUseMtx[u*n+col]==treeIdx-1) col++;
+// 		// 	if(col > maxCol) maxCol=col;
+// 		// 	// colVecCX[n*col + colorSzCX[col]]=u;
+// 		// 	// colorSzCX[col]++;
+// 		// 	// colCX[col] = true;
+// 		// 	for (int j = pstart[u]; j < pstart[u+1]; j++){
+// 		// 		int nei=edges[j];
+// 		// 		if(!isInC(nei) || neiInP[nei]!=P_end) continue;
+// 		// 		colorUseMtx[nei*n+col]=treeIdx-1;
+// 		// 	}
+// 		// 	colorLabel[u]=col;
+// 		// }
+
+
+// 		// int UB=min(PUB+CNColNum, P_end+CMax);
+// 		return P_end+CMax;
+// 		// return UB;
+// 	}

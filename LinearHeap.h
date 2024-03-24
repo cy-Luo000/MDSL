@@ -47,7 +47,7 @@ public:
 		}
 	}
 
-	void init(int _n, int _key_cap, int *_id_s, int *_key_s) {
+	void  init(int _n, int _key_cap, int *_id_s, int *_key_s) {
 		if(key_s == nullptr) key_s = new int[n];
 		if(pre_s == nullptr) pre_s = new int[n];
 		if(next_s == nullptr) next_s = new int[n];
@@ -70,6 +70,25 @@ public:
 		}
 	}
 
+	void clear(){
+		max_key=min_key=0;
+		if(head_s != nullptr) {
+			delete[] head_s;
+			head_s = nullptr;
+		}
+		if(pre_s != nullptr) {
+			delete[] pre_s;
+			pre_s = nullptr;
+		}
+		if(next_s != nullptr) {
+			delete[] next_s;
+			next_s = nullptr;
+		}
+		if(key_s != nullptr) {
+			delete[] key_s;
+			key_s = nullptr;
+		}
+	}
 	int get_key(int id) { return key_s[id]; }
 
 	void get_ids(int *vs, int &vs_size) {

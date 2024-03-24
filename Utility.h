@@ -39,7 +39,6 @@ using ept = int; // edge pointer type; unsigned int can be used to process upto 
 #define pb push_back
 #define mp make_pair
 
-
 class Utility {
 public:
 	static FILE *open_file(const char *file_name, const char *mode) {
@@ -70,7 +69,6 @@ public:
 		return res;
 	}
 };
-
 
 
 #endif
