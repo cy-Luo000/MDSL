@@ -1,0 +1,25 @@
+int CBK0ProMax(){
+		int C_max = 0, k_cur=k-MEInP; int maxCol=0;
+		int i;
+		colorSz[0]=0;
+		for (i = P_end; i < C_end; i++){
+			int u=PC[i]; if(P_end-neiInP[u]>0) continue;
+			int col=0; 
+			while(colorUseMtx[u*n+col]==treeIdx) col++;
+			if(col>maxCol) colorSz[col]=0;
+			maxCol=max(maxCol,col);
+			for(int j=pstart[u];j<pstart[u+1];++j){
+				int nei=edges[j];
+				colorUseMtx[nei*n+col]=treeIdx;
+			}
+			if(!colorSz[col]) C_max++;
+			colorLabel[u]=col; colorSz[col]++; colorIdx[u]=treeIdx;
+		}
+RET: 
+		return P_end+C_max;
+	}
+
+
+{KDC: 0, 33, 3, 14, 27, 10, 5, 12, 23, 29, 1, 22, 24, 8, 21, 18, 17, 16, 13, 15, 9, 7, 11, 26, 6, 4, 19, 28, }
+问题: include
+complexbound动态规划求t[c,x]

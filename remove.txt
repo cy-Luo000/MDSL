@@ -1,0 +1,898 @@
+bool recurDelE=false;
+	if(useNew){
+		bool recurDel=false;
+		//test
+		// printf("test remove begin\n");
+		long long ttsz=0;
+		while (!Qv.empty()||!Qe.empty()){
+			while (!Qv.empty()){
+				int u=Qv.front();
+				Qv.pop();
+				if(restore_set[u]==1) {
+					// CtoX(u);
+					if(!isInC(u)) printPos(u);
+					assert(isInC(u));
+
+					swapID(PC_rid[u], --C_end);
+					swapID(C_end, --CX_end);
+					int nonadj_inC = (C_end-P_end)-neiInC[u];
+					int nonadj_inPC = C_end - (neiInP[u]+neiInC[u]);
+					int nonadj_inG = CX_end - neiInG[u];
+					int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
+					MEInC -= nonadj_inC;
+					MEInPC -= nonadj_inPC;
+					MEInG -= nonadj_inG;
+					MEInCCX -= nonadj_inCCX;
+					if(usecsr){
+						for (int i = pstart[u]; i < pstart[u+1]; i++){
+							int v=edges[i];
+							if(!isAdj(u,v)) continue;
+							neiInC[v]--, neiInG[v]--;
+							if(recurDel){
+								if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+									if(isInC(v)){
+										Qv.push(v);
+										remove_level[v]=level;
+										restore_set[v]=1;
+									}else if(isInCX(v)){
+										Qv.push(v);
+										remove_level[v]=level;
+										restore_set[v]=2;
+									}
+								}
+							}
+						}
+					}
+					if(usemtx){
+						vector<int> unei;
+						for (int i = 0; i < CX_end; i++){
+							int v=PC[i];
+							if(isAdj(u,v)) unei.push_back(v);
+						}
+						for (int i = 0; i < unei.size(); i++){
+							int v=unei[i];
+							neiInC[v]--, neiInG[v]--;
+							if(recurDel){
+								if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+									if(isInC(v)){
+										Qv.push(v);
+										remove_level[v]=level;
+										restore_set[v]=1;
+									}else if(isInCX(v)){
+										Qv.push(v);
+										remove_level[v]=level;
+										restore_set[v]=2;
+									}
+								}
+							}
+							if(enable){
+								for (int j = i+1; j < unei.size(); j++){
+									int w=unei[j];
+									CmNei[v][w]--, CmNei[w][v]--;
+									if(recurDelE){
+										// printf("enter recurDelE\n");
+										if(!isInP(v) && !isInP(w)){
+											if(MuEx[v][w]) continue;
+											if(edgePrune(v,w)) Qe.push(make_pair(v,w));
+										}
+									}
+								}
+								
+							}
+						}
+
+
+						/* if(enable){
+							for (int i = 1; i < unei.size(); i++){
+								int v=unei[i];
+								for (int j = 0; i < i; j++){
+									int w=unei[j];
+									assert(CmNei[v][w]);
+
+#ifdef _DBUG_
+						int common_neighbors = 0;
+        	for(int k = P_end;k <= CX_end;k ++) if(matrix[PC[k]*n + v]&&matrix[PC[k]*n + w]) ++ common_neighbors;
+        	assert(CmNei[v][w] == common_neighbors);
+        	assert(CmNei[w][v] == common_neighbors);
+#endif
+
+
+									CmNei[v][w]--;
+									CmNei[w][v]--;
+
+#ifdef _DBUG_
+			common_neighbors = 0;
+        	for(int k = P_end;k < CX_end;k ++) if(matrix[PC[k]*n + v]&&matrix[PC[k]*n + w]) ++ common_neighbors;
+        	assert(CmNei[v][w] == common_neighbors);
+        	assert(CmNei[w][v] == common_neighbors);
+#endif
+
+
+
+								}
+								
+							}
+						}
+						 */
+						unei.clear();
+					}
+					tuple<pair<int,int>, pair<int,int>, int> t(make_pair(-1, u), make_pair(1,3),-1);
+					move_record.push_back(t);
+				}
+				else if(restore_set[u]==2){
+					// CXtoX(u);
+					assert(isInCX(u));
+					swapID(PC_rid[u], --CX_end);
+					int nonadj_inG = CX_end - neiInG[u];
+					int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
+					MEInG -= nonadj_inG;
+					MEInCCX -= nonadj_inCCX;
+					if(usecsr){
+						for (int i = pstart[u]; i < pstart[u+1]; i++){
+							int v=edges[i];
+							if(!isAdj(u,v)) continue;
+							neiInG[v]--;
+							if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+								if(isInC(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=1;
+								}else if(isInCX(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=2;
+								}
+							}
+						}
+					}
+					if (usemtx){
+						vector<int> unei;
+						for (int i = 0; i < CX_end; i++){
+							int v=PC[i];
+							if(isAdj(u,v)) unei.push_back(v);
+						}
+						for (int i = 0; i < unei.size(); i++){
+							int v=unei[i];
+							neiInG[v]--;
+							if(recurDel || true){
+								if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+									if(isInC(v)){
+										Qv.push(v);
+										remove_level[v]=level;
+										restore_set[v]=1;
+									}else if(isInCX(v)){
+										Qv.push(v);
+										remove_level[v]=level;
+										restore_set[v]=2;
+									}
+								}
+							}
+							if(enable){
+								for (int j = i+1; j < unei.size(); j++){
+									int w=unei[j];
+									CmNei[v][w]--, CmNei[w][v]--;
+									if(recurDelE){
+										printf("enter recurDelE\n");
+										if(!isInP(v) && !isInP(w)){
+											if(MuEx[v][w]) continue;
+											if(edgePrune(v,w)) Qe.push(make_pair(v,w));
+										}
+									}
+								}
+							}
+						}
+						/* if(enable){
+							for (int i = 1; i < unei.size(); i++){
+								int v=unei[i];
+								for (int j = 0; i < i; j++){
+									int w=unei[j];
+									assert(CmNei[v][w]);
+#ifdef _DBUG_
+						int common_neighbors = 0;
+        	for(int k = P_end;k <= CX_end;k ++) if(matrix[PC[k]*n + v]&&matrix[PC[k]*n + w]) ++ common_neighbors;
+        	assert(CmNei[v][w] == common_neighbors);
+        	assert(CmNei[w][v] == common_neighbors);
+#endif
+
+
+									CmNei[v][w]--;
+									CmNei[w][v]--;
+
+#ifdef _DBUG_
+			common_neighbors = 0;
+        	for(int k = P_end;k < CX_end;k ++) if(matrix[PC[k]*n + v]&&matrix[PC[k]*n + w]) ++ common_neighbors;
+        	assert(CmNei[v][w] == common_neighbors);
+        	assert(CmNei[w][v] == common_neighbors);
+#endif
+								}
+							}
+						} */
+						unei.clear();
+					}
+					tuple<pair<int,int>, pair<int,int>, int> t(make_pair(-1, u), make_pair(2,3),-1);
+					move_record.push_back(t);
+				}
+			}
+
+			if(Qe.empty()) continue;
+			if(enable){
+				// printf("second order\n");
+				int v1=Qe.front().first, v2=Qe.front().second;
+				Qe.pop();
+				if(remove_level[v1]<=level|| remove_level[v2]<=level ||MuEx[v1][v2]) continue;
+				MuEx[v1][v2]=MuEx[v2][v1]=true;
+				int oriadj=isAdj(v1,v2)?1:0;
+				if(isAdj(v1,v2)){
+					isAdj(v1,v2)=isAdj(v2,v1)=false;
+					neiInG[v1]--, neiInG[v2]--;
+					neiInC[v1]--, neiInC[v2]--;
+					MEInC++, MEInCCX++, MEInPC++, MEInG++;
+					//v1, v2 cannot in P
+					// if(1+neiInG[v1]+k-MEInP<=LB && remove_level[v1]==n){
+					// 	printf("enter del v\n");
+					// 	if(isInC(v1)) restore_set[v1]=1;
+					// 	else restore_set[v1]=2;
+					// 	remove_level[v1]=level;
+					// 	Qv.push(v1);
+					// }if(1+neiInG[v2]+k-MEInP<=LB && remove_level[v2]==n){
+					// 	printf("enter del v\n");
+					// 	if(isInC(v1)) restore_set[v2]=1;
+					// 	else restore_set[v2]=2;
+					// 	remove_level[v2]=level;
+					// 	Qv.push(v2);
+					// }
+					vector<int> unei;
+					for (int id = 0; id < CX_end; id++){
+						int v3=PC[id];
+						if(isAdj(v1,v3)) unei.push_back(v3);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v3=unei[i];
+						CmNei[v2][v3]--, CmNei[v3][v2]--;
+						if (recurDelE || true){
+							if(!isInP(v3)){
+								if(edgePrune(v2,v3)){
+									printf("enter del e\n");
+									Qe.push(make_pair(v2,v3));
+								}
+							}
+						}
+					}
+					unei.clear();
+					// vector<int> unei;
+					for (int id = 0; id < CX_end; id++){
+						int v3=PC[id];
+						if(isAdj(v2,v3)) unei.push_back(v3);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v3=unei[i];
+						CmNei[v1][v3]--, CmNei[v3][v1]--;
+						if (recurDelE || true){
+							if(!isInP(v3)){
+								if(edgePrune(v1,v3)){
+									printf("enter del e\n");
+									Qe.push(make_pair(v1,v3));
+								}
+							}
+						}
+					}
+					unei.clear();
+				}
+				tuple<pair<int, int>,pair<int, int>,int> t(make_pair(v1,v2), make_pair(-1,-1), oriadj);
+				move_record.push_back(t);
+			}
+		}
+		// printf("test remove end\n");
+		// exit(0);
+	/* 	while (!Qv.empty()){
+			int u=Qv.front();
+			Qv.pop();
+			if(restore_set[u]==1) {
+				// CtoX(u);
+				assert(isInC(u));
+				swapID(PC_rid[u], --C_end);
+				swapID(C_end, --CX_end);
+				int nonadj_inC = (C_end-P_end)-neiInC[u];
+				int nonadj_inPC = C_end - (neiInP[u]+neiInC[u]);
+				int nonadj_inG = CX_end - neiInG[u];
+				int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
+				MEInC -= nonadj_inC;
+				MEInPC -= nonadj_inPC;
+				MEInG -= nonadj_inG;
+				MEInCCX -= nonadj_inCCX;
+				if(usecsr){
+					for (int i = pstart[u]; i < pstart[u+1]; i++){
+						int v=edges[i];
+						if(!isAdj(u,v)) continue;
+						neiInC[v]--, neiInG[v]--;
+						if(recurDel){
+							if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+								if(isInC(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=1;
+								}else if(isInCX(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=2;
+								}
+							}
+						}
+					}
+				}
+				if(usemtx){
+					vector<int> unei;
+					for (int i = 0; i < CX_end; i++){
+						int v=PC[i];
+						if(isAdj(u,v)) unei.push_back(v);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v=unei[i];
+						neiInC[v]--, neiInG[v]--;
+						if(recurDel){
+							if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+								if(isInC(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=1;
+								}else if(isInCX(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=2;
+								}
+							}
+						}
+						if(enable){
+							for (int j = i+1; j < unei.size(); j++){
+								int w=unei[j];
+								CmNei[v][w]--, CmNei[w][v]--;
+							}
+							
+						}
+					}
+					unei.clear();
+				}
+				tuple<pair<int,int>, pair<int,int>, int> t(make_pair(-1, u), make_pair(1,3),-1);
+				move_record.push_back(t);
+			}
+			else if(restore_set[u]==2){
+				// CXtoX(u);
+				assert(isInCX(u));
+				swapID(PC_rid[u], --CX_end);
+				int nonadj_inG = CX_end - neiInG[u];
+				int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
+				MEInG -= nonadj_inG;
+				MEInCCX -= nonadj_inCCX;
+				if(usecsr){
+					for (int i = pstart[u]; i < pstart[u+1]; i++){
+						int v=edges[i];
+						if(!isAdj(u,v)) continue;
+						neiInG[v]--;
+						if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+							if(isInC(v)){
+								Qv.push(v);
+								remove_level[v]=level;
+								restore_set[v]=1;
+							}else if(isInCX(v)){
+								Qv.push(v);
+								remove_level[v]=level;
+								restore_set[v]=2;
+							}
+						}
+					}
+				}
+				if (usemtx){
+					vector<int> unei;
+					for (int i = 0; i < CX_end; i++){
+						int v=PC[i];
+						if(isAdj(u,v)) unei.push_back(v);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v=unei[i];
+						neiInG[v]--;
+						if(recurDel){
+							if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+								if(isInC(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=1;
+								}else if(isInCX(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=2;
+								}
+							}
+						}
+						if(enable){
+							for (int j = i+1; j < unei.size(); j++){
+								int w=unei[j];
+								CmNei[v][w]--, CmNei[w][v]--;
+							}
+						}
+					}
+					unei.clear();
+				}
+				tuple<pair<int,int>, pair<int,int>, int> t(make_pair(-1, u), make_pair(2,3),-1);
+				move_record.push_back(t);
+			}
+		}
+		if(delEdge && enable){
+			while(!Qe.empty()){
+				int v1=Qe.front().first, v2=Qe.front().second;
+				Qe.pop();
+				if(remove_level[v1]<=level|| remove_level[v2]<=level ||MuEx[v1][v2]) continue;
+				MuEx[v1][v2]=MuEx[v2][v1]=true;
+				if(isAdj(v1,v2)){
+					isAdj(v1,v2)=isAdj(v2,v1)=false;
+					neiInG[v1]--, neiInG[v2]--;
+					neiInC[v1]--, neiInC[v2]--;
+					MEInC++, MEInCCX++, MEInPC++, MEInG++;
+					vector<int> unei;
+					for (int id = 0; id < CX_end; id++){
+						int v3=PC[id];
+						if(isAdj(v1,v3)) unei.push_back(v3);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v3=unei[i];
+						CmNei[v2][v3]--, CmNei[v3][v2]--;
+					}
+					unei.clear();
+					// vector<int> unei;
+					for (int id = 0; id < CX_end; id++){
+						int v3=PC[id];
+						if(isAdj(v2,v3)) unei.push_back(v3);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v3=unei[i];
+						CmNei[v1][v3]--, CmNei[v3][v1]--;
+					}
+					unei.clear();
+				}
+				tuple<pair<int, int>,pair<int, int>,int> t(make_pair(v1,v2), make_pair(-1,-1), isAdj(v1,v2)?1:0);
+				move_record.push_back(t);
+			}
+		}
+		 */// while(!Qex.empty()){
+		// 	int v1=Qex.front().first, v2=Qex.front().second;
+		// 	Qex.pop();
+		// 	if(remove_level[v1]<=level|| remove_level[v2]<=level || MuEx[v1][v2]) continue;
+		// 	MuEx[v1][v2]=MuEx[v2][v1]=true;
+		// 	tuple<pair<int, int>,pair<int, int>,int> t(make_pair(v1,v2), make_pair(-1,-1), isAdj(v1,v2)?1:0);
+		// 	move_record.push_back(t);
+			
+		// }
+	}
+
+
+
+
+
+
+
+void ExactSearcher::removeVE(int level){
+	// remove the vertices in C
+	// printf("enter removeVE\n");
+	vector<int> u_neis;
+#ifdef _CHECK_COIN_
+	if(checkConinfidence(level)==-1){
+		printf("subNum: %d, level: %d, error in removeVE begin\n", subNum, level);
+		exit(0);
+	}
+#endif
+	if(useOld){
+		while (!Qv.empty() || !Qe.empty()){
+		while (!Qv.empty()){
+			int u=Qv.front();
+			Qv.pop();
+			if(restore_set[u]==1) {
+				// CtoX(u);
+				swapID(PC_rid[u], --C_end);
+				swapID(C_end, --CX_end);
+				int nonadj_inC = (C_end-P_end)-neiInC[u];
+				int nonadj_inPC = C_end - (neiInP[u]+neiInC[u]);
+				int nonadj_inG = CX_end - neiInG[u];
+				int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
+				MEInC -= nonadj_inC;
+				MEInPC -= nonadj_inPC;
+				MEInG -= nonadj_inG;
+				MEInCCX -= nonadj_inCCX;
+				for (int i = pstart[u]; i < pstart[u+1]; i++){
+					int v=edges[i];
+					if(!isAdj(u,v)) continue;
+					neiInC[v]--, neiInG[v]--;
+					if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+						if(isInC(v)){
+							Qv.push(v);
+							remove_level[v]=level;
+							restore_set[v]=1;
+						}else if(isInCX(v)){
+							Qv.push(v);
+							remove_level[v]=level;
+							restore_set[v]=2;
+						}
+					}
+				}
+			}
+			else if(restore_set[u]==2){
+				// CXtoX(u);
+				swapID(PC_rid[u], --CX_end);
+				int nonadj_inG = CX_end - neiInG[u];
+				int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
+				MEInG -= nonadj_inG;
+				MEInCCX -= nonadj_inCCX;
+				for (int i = pstart[u]; i < pstart[u+1]; i++){
+					int v=edges[i];
+					if(!isAdj(u,v)) continue;
+					neiInG[v]--;
+					if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+						if(isInC(v)){
+							Qv.push(v);
+							remove_level[v]=level;
+							restore_set[v]=1;
+						}else if(isInCX(v)){
+							Qv.push(v);
+							remove_level[v]=level;
+							restore_set[v]=2;
+						}
+					}
+				}
+			}
+#ifdef _REMOVE_EDGES_
+			u_neis.clear();
+			for (int i = pstart[u]; i < pstart[u+1]; i++){
+				int vv=edges[i];
+				if(isAdj(u,vv)) u_neis.push_back(vv);
+			}
+			for (int i = 1; i < u_neis.size(); i++){
+				int v1=u_neis[i];
+				if (remove_level[v1]<=level || !isInC(v1)) continue;
+				for (int j = 0; j < i; j++){
+					int v2=u_neis[j];
+					if (remove_level[v2]<=level || !isInC(v2)) continue;
+					if(edgePrune(v1,v2)){
+						if(isAdj(v1,v2)) Qe.push(make_pair(v1,v2));
+						// Qex.push(make_pair(v1,v2));
+					}
+				}
+				
+			}
+#endif
+			removed_v.push_back(u);
+		}
+		if(Qe.empty()) break;
+#ifdef _REMOVE_EDGES_
+		int v1=Qe.front().first, v2=Qe.front().second;
+		Qe.pop();
+		if(remove_level[v1]<=level|| remove_level[v2]<=level || !isAdj(v1,v2)) continue;
+		assert(isInC(v1) && isInC(v2));
+		// isAdj(v1,v2)=isAdj(v2,v1)=false;
+		
+		if(neiInG[v1]+(k-MEInP)<=LB){
+			remove_level[v1]=level;
+			restore_set[v1]=1;
+			Qv.push(v1);
+		}
+		if(neiInG[v2]+(k-MEInP)<=LB){
+			remove_level[v2]=level;
+			restore_set[v2]=1;
+			Qv.push(v2);
+		}
+		neiInG[v1]--, neiInG[v2]--;
+		neiInC[v1]--, neiInC[v2]--;
+		MEInC++, MEInCCX++, MEInPC++, MEInG++;
+		matrix[v1*n+v2]=matrix[v2*n+v1]=false;
+		removed_edges.push_back(make_pair(v1,v2));
+
+		//删掉受影响的二元组
+
+		//collect the v1's neighbors
+		// for (int i = pstart[v1]; i < pstart[v1+1]; i++){
+		// 	int v3=edges[i];
+		// 	if(!isAdj(v1,v3) || remove_level[v3]<=level || !isInC(v3)) continue;
+		// 	if(edgePrune(v2,v3)) {
+		// 		// if(isAdj(v2,v3)) Qe.push(make_pair(v2,v3));
+		// 		Qex.push(make_pair(v2,v3));
+		// 	}
+		// }
+
+		//collect the v2's neighbors
+		// for (int i = pstart[v2]; i < pstart[v2+1]; i++){
+		// 	int v3=edges[i];
+		// 	if(!isAdj(v2,v3) || remove_level[v3]<=level || !isInC(v3)) continue;
+		// 	if(edgePrune(v1,v3)) {
+		// 		// if(isAdj(v1,v3)) Qe.push(make_pair(v2,v3));
+		// 		Qex.push(make_pair(v1,v3));
+		// 	}
+		// }
+		
+#endif
+	}
+	
+
+	
+#ifdef _REMOVE_EDGES_
+	// while (!Qe.empty())
+	// {
+	// 	int v1=Qe.front().first, v2=Qe.front().second;
+	// 	Qe.pop();
+	// 	if(remove_level[v1]<=level|| remove_level[v2]<=level || !isAdj(v1,v2)) continue;
+	// 	assert(isInC(v1) && isInC(v2));
+	// 	// isAdj(v1,v2)=isAdj(v2,v1)=false;
+	// 	matrix[v1*n+v2]=matrix[v2*n+v1]=false;
+	// 	neiInG[v1]--, neiInG[v2]--;
+	// 	neiInC[v1]--, neiInC[v2]--;
+	// 	MEInC++, MEInCCX++, MEInPC++, MEInG++;
+	// 	removed_edges.push_back(make_pair(v1,v2));
+	// }
+#endif
+		while(!Qex.empty()){
+			int v1=Qex.front().first, v2=Qex.front().second;
+			Qex.pop();
+			if(remove_level[v1]<=level|| remove_level[v2]<=level || MuEx[v1][v2]) continue;
+			MuEx[v1][v2]=MuEx[v2][v1]=true;
+			exclusive_pairs.push_back(make_pair(v1,v2));
+		}
+	}
+	bool recurDelE=false;
+	if(useNew){
+		bool recurDel=false;
+		//test
+		// printf("test remove begin\n");
+		long long ttsz=0;
+	// printf("test remove end\n");
+		// exit(0);
+		while (!Qv.empty()){
+			int u=Qv.front();
+			Qv.pop();
+			if(restore_set[u]==1) {
+				// CtoX(u);
+				assert(isInC(u));
+				swapID(PC_rid[u], --C_end);
+				swapID(C_end, --CX_end);
+				assert(isInX(u));
+				assert(u==PC[CX_end]);
+				int nonadj_inC = (C_end-P_end)-neiInC[u];
+				int nonadj_inPC = C_end - (neiInP[u]+neiInC[u]);
+				int nonadj_inG = CX_end - neiInG[u];
+				int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
+				MEInC -= nonadj_inC;
+				MEInPC -= nonadj_inPC;
+				MEInG -= nonadj_inG;
+				MEInCCX -= nonadj_inCCX;
+				if(usecsr){
+					for (int i = pstart[u]; i < pstart[u+1]; i++){
+						int v=edges[i];
+						if(!isAdj(u,v)) continue;
+						neiInC[v]--, neiInG[v]--;
+						if(recurDel){
+							if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+								if(isInC(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=1;
+								}else if(isInCX(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=2;
+								}
+							}
+						}
+					}
+				}
+				if(usemtx){
+					vector<int> unei;
+					unei.clear();
+					for (int i = 0; i < CX_end; i++){
+						int v=PC[i];
+						if(isAdj(u,v)) unei.push_back(v);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v=unei[i];
+						assert(isAdj(u,v));
+						neiInC[v]--, neiInG[v]--;
+						if(recurDel){
+							if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+								if(isInC(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=1;
+								}else if(isInCX(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=2;
+								}
+							}
+						}
+						// if(enable){
+						// 	for (int j = i+1; j < unei.size(); j++){
+						// 		int w=unei[j];
+						// 		CmNei[v][w]--, CmNei[w][v]--;
+						// 	}
+							
+						// }
+					}
+
+					if(enable){
+						for (int id1 = 0; id1 < unei.size(); id1++)
+						{
+							int v=unei[id1];
+							for (int id2 = id1+1; id2 < unei.size(); id2++)
+							{
+								int w=unei[id2];
+								assert(isAdj(v,u) && isAdj(w, u));
+#ifdef _DBUG_
+						int common_neighbors = 0;
+        	for(int k = P_end;k <= CX_end;k ++) if(matrix[PC[k]*n + v]&&matrix[PC[k]*n + w]) ++ common_neighbors;
+        	assert(CmNei[v][w] == common_neighbors);
+        	assert(CmNei[w][v] == common_neighbors);
+#endif
+
+
+								CmNei[w][v]--;
+								CmNei[v][w]--;
+
+
+#ifdef _DBUG_
+			int common_neighbors2 = 0;
+        	for(int k = P_end;k < CX_end;k ++) if(matrix[PC[k]*n + v]&&matrix[PC[k]*n + w]) ++ common_neighbors2;
+			if(CmNei[v][w]!=common_neighbors2){
+				printf("subNum: %d, level: %d, u: %d, CmNei[%d][%d]=%d, common_neighbors2=%d, common_neighbors=%d\n",subNum,level,u, v,w,CmNei[v][w],common_neighbors2,common_neighbors);
+			}
+			assert(isAdj(v,u) && isAdj(w, u));
+        	assert(CmNei[v][w] == common_neighbors2);
+        	assert(CmNei[w][v] == common_neighbors2);
+#endif
+							}
+							
+						}
+					}
+					
+
+
+
+					unei.clear();
+				}
+				tuple<pair<int,int>, pair<int,int>, int> t(make_pair(-1, u), make_pair(1,3),-1);
+				move_record.push_back(t);
+			}
+			else if(restore_set[u]==2){
+				// CXtoX(u);
+				assert(isInCX(u));
+				swapID(PC_rid[u], --CX_end);
+				assert(isInX(u));
+				assert(u==PC[CX_end]);
+				int nonadj_inG = CX_end - neiInG[u];
+				int nonadj_inCCX = (CX_end - P_end) - (neiInG[u] - neiInP[u]);
+				MEInG -= nonadj_inG;
+				MEInCCX -= nonadj_inCCX;
+				if(usecsr){
+					for (int i = pstart[u]; i < pstart[u+1]; i++){
+						int v=edges[i];
+						if(!isAdj(u,v)) continue;
+						neiInG[v]--;
+						if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+							if(isInC(v)){
+								Qv.push(v);
+								remove_level[v]=level;
+								restore_set[v]=1;
+							}else if(isInCX(v)){
+								Qv.push(v);
+								remove_level[v]=level;
+								restore_set[v]=2;
+							}
+						}
+					}
+				}
+				if (usemtx){
+					vector<int> unei;
+					for (int i = 0; i < CX_end; i++){
+						int v=PC[i];
+						if(isAdj(u,v)) unei.push_back(v);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v=unei[i];
+						neiInG[v]--;
+						if(recurDel){
+							if(1 + neiInG[v]+k-MEInP<=LB && remove_level[v]==n){
+								if(isInC(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=1;
+								}else if(isInCX(v)){
+									Qv.push(v);
+									remove_level[v]=level;
+									restore_set[v]=2;
+								}
+							}
+						}
+						// if(enable){
+						// 	for (int j = i+1; j < unei.size(); j++){
+						// 		int w=unei[j];
+						// 		CmNei[v][w]--, CmNei[w][v]--;
+						// 	}
+						// }
+					}
+					if(enable){
+						for (int id1 = 0; id1 < unei.size(); id1++)
+						{
+							int v=unei[id1];
+							for (int id2 = id1+1; id2 < unei.size(); id2++)
+							{
+								int w=unei[id2];
+#ifdef _DBUG_
+						int common_neighbors = 0;
+        	for(int k = P_end;k <= CX_end;k ++) if(matrix[PC[k]*n + v]&&matrix[PC[k]*n + w]) ++ common_neighbors;
+        	assert(CmNei[v][w] == common_neighbors);
+        	assert(CmNei[w][v] == common_neighbors);
+#endif
+								CmNei[w][v]--;
+								CmNei[v][w]--;
+#ifdef _DBUG_
+			int common_neighbors2 = 0;
+        	for(int k = P_end;k < CX_end;k ++) if(matrix[PC[k]*n + v]&&matrix[PC[k]*n + w]) ++ common_neighbors2;
+			if(CmNei[v][w]!=common_neighbors2){
+				printf("subNum: %d, level: %d, CmNei[%d][%d]=%d, common_neighbors=%d\n",subNum,level, v,w,CmNei[v][w],common_neighbors2);
+			}
+        	assert(CmNei[v][w] == common_neighbors2);
+        	assert(CmNei[w][v] == common_neighbors2);
+#endif
+							}
+							
+						}
+					}
+					
+					unei.clear();
+				}
+				tuple<pair<int,int>, pair<int,int>, int> t(make_pair(-1, u), make_pair(2,3),-1);
+				move_record.push_back(t);
+			}
+		}
+		if(enable){
+			while(!Qe.empty()){
+				int v1=Qe.front().first, v2=Qe.front().second;
+				Qe.pop();
+				if(!delEdge) continue;
+				printf("del edge\n");
+				if(remove_level[v1]<=level|| remove_level[v2]<=level ||MuEx[v1][v2]) continue;
+				MuEx[v1][v2]=MuEx[v2][v1]=true;
+				if(isAdj(v1,v2)){
+					isAdj(v1,v2)=isAdj(v2,v1)=false;
+					neiInG[v1]--, neiInG[v2]--;
+					neiInC[v1]--, neiInC[v2]--;
+					MEInC++, MEInCCX++, MEInPC++, MEInG++;
+					vector<int> unei;
+					for (int id = 0; id < CX_end; id++){
+						int v3=PC[id];
+						if(isAdj(v1,v3)) unei.push_back(v3);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v3=unei[i];
+						CmNei[v2][v3]--, CmNei[v3][v2]--;
+					}
+					unei.clear();
+					// vector<int> unei;
+					for (int id = 0; id < CX_end; id++){
+						int v3=PC[id];
+						if(isAdj(v2,v3)) unei.push_back(v3);
+					}
+					for (int i = 0; i < unei.size(); i++){
+						int v3=unei[i];
+						CmNei[v1][v3]--, CmNei[v3][v1]--;
+					}
+					unei.clear();
+				}
+				tuple<pair<int, int>,pair<int, int>,int> t(make_pair(v1,v2), make_pair(-1,-1), isAdj(v1,v2)?1:0);
+				move_record.push_back(t);
+			}
+		}
+		
+		
+	}
+#ifdef _CHECK_COIN_
+	if(checkConinfidence(level)==-1){
+		printf("subNum: %d, level: %d, error in removeVE end\n", subNum, level);
+		exit(0);
+	}
+#endif
+	u_neis.clear();
+}

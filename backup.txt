@@ -1,0 +1,463 @@
+#pragma once
+using namespace std;
+long long tree_cnt=0;
+long long colorBndPrune=0;
+long long boundPrune=0;
+long long boundTime=0;
+class HeuriSearcher{
+public:
+	int n;
+	int m;
+	int* pstart;
+	int* edges;
+    int k; //total missing edges
+    int LB; // the lowerbound
+    int UB; // the upperbound
+	// vector<int> &KDC;
+
+    // int* PC;
+    // int* PC_rid;// to record the positon in PC of each vertex v of G
+    // int P_end;// the P is from PC[0] to PC[P_end-1]
+    // int C_end;// the C is from PC[P_end] to PC[C_end-1]
+
+    // int* neiInP;// to record every vertex's degree in P
+    // int* neiInG;// to record every vertex's degree in C
+    // int MEInP;// the missing edges in P 
+    // int MEInG;// the missing edges in C
+
+	// Your code
+	void search(){}
+};
+
+class ExactSearcher{
+public:
+	int n;
+	int m;
+	int* pstart;
+	int* edges;
+    int k; //total missing edges
+    int LB; // the lowerbound
+    int UB; // the upperbound
+	vector<int> &KDC;
+
+    int* PC;
+    int* PC_rid;// to record the positon in PC of each vertex v of G
+    int P_end;// the P is from PC[0] to PC[P_end-1]
+    int C_end;// the C is from PC[P_end] to PC[C_end-1]
+
+    int* neiInP;// to record every vertex's degree in P
+    int* neiInG;// to record every vertex's degree in C
+	bool* matrix;
+    int MEInP;// the missing edges in P 
+    int MEInG;// the missing edges in C
+
+	long long treeIdx;
+	int *colorLabel;
+	int *colorUse;
+	int *colorSz;
+	int *colorIdx;
+	int *colorUseMtx;
+
+	bool& isAdj(int x, int y){
+		return matrix[x*n+y];
+	}
+
+   ExactSearcher(int _k, int _n, vector<pair<int,int>> &_vp, vector<int> &_KDC, int _UB)
+   :KDC(_KDC)
+   {
+		n=_n;
+		m=_vp.size();
+		k=_k;
+		LB=_KDC.size();
+		UB=_UB;
+
+		pstart=new int[n+1];
+		edges=new int[m*2];
+        PC=new int[n];
+        PC_rid=new int[n];
+        neiInP=new int[n];
+        neiInG=new int[n];
+		matrix=new bool[n*n];
+
+		colorLabel=new int[n];
+		colorUse = new int[n];
+		colorSz = new int[n];
+		colorIdx = new int [n];
+		colorUseMtx = new int[n*n];
+		P_end=0; C_end=n;treeIdx=0;
+		memset(matrix,0,sizeof(bool)*n*n);
+		memset(neiInP,0,sizeof(int)*n);
+		fill(colorLabel,colorLabel+n,-1);
+		fill(colorIdx,colorIdx+n,-1);
+		fill(colorUseMtx, colorUseMtx+n*n,-1);
+		memset(colorSz,0,n*sizeof(int));
+		memset(colorUse,0,n*sizeof(int));
+		for(auto pr : _vp){
+			int u=pr.first, v=pr.second; isAdj(u,v)=isAdj(v,u)=true;
+		}
+		int idx=0;
+		for(int i=0;i<n;++i){
+			pstart[i]=idx;	
+			for(int j=0;j<n;++j){
+				if(isAdj(i,j)) edges[idx++]=j;
+			}
+			neiInG[i]=idx-pstart[i];
+			PC[i]=i;
+			PC_rid[i]=i;
+		}
+		pstart[n]=idx;
+		MEInP=0;
+		MEInG=n*(n-1)/2-m;
+   }
+
+   ~ExactSearcher(){
+        delete[] PC;
+        delete[] PC_rid;
+        delete[] neiInP;
+        delete[] neiInG;
+		delete[] matrix;
+		delete[] pstart;
+		delete[] edges;
+
+		delete[] colorLabel;
+		delete[] colorUse;
+		delete[] colorSz;
+		delete[] colorIdx;
+		delete[] colorUseMtx;
+   }
+    
+	bool inC(int id){
+		return id>=P_end&&id<C_end;
+	}
+
+	void C2P(int id){
+		assert(inC(id));
+		// verifyOrder();
+		int u = PC[id];
+		int v = PC[P_end];
+		swapID(id,P_end++);
+		//maintain data structure
+		int nonadj_inP=P_end-1-neiInP[u];
+		MEInP+=nonadj_inP;
+		for (int i = pstart[u]; i < pstart[u+1]; i++) 
+			neiInP[edges[i]]++;
+		// while(PC_rid[v] < C_end-1 && neiInP[v] < neiInP[PC[PC_rid[v]+1]]) swapID(PC_rid[v], PC_rid[v+1]);//!
+		// while(PC_rid[v] > P_end && neiInP[v] > neiInP[PC[PC_rid[v]-1]]) swapID(PC_rid[v], PC_rid[v]-1);
+		// orderCKeep(u,1);
+		// verifyOrder();
+	}
+
+	void P2C(int push_cnt){
+		while (push_cnt--)
+		{
+			// verifyOrder();
+			P_end--;
+			int u = PC[P_end];
+			int nonadj_inP=P_end-neiInP[PC[P_end]];
+			MEInP-=nonadj_inP;
+			for (int i = pstart[PC[P_end]]; i < pstart[PC[P_end]+1]; i++)
+				neiInP[edges[i]]--;
+			// orderCKeep(u,0);
+			// verifyOrder();
+		}
+	}
+
+	void P2X(){
+		// verifyOrder();
+		int u=PC[P_end-1];
+		int v = PC[C_end-1];
+		swapID(--P_end,--C_end);
+		int nonadj_inP=P_end-neiInP[u];
+		int nonadj_inG=C_end-neiInG[u];
+		MEInP-=nonadj_inP;
+		MEInG-=nonadj_inG;
+		for (int i = pstart[u]; i < pstart[u+1]; i++)
+			neiInP[edges[i]]--, neiInG[edges[i]]--;
+		// while(PC_rid[v] < C_end-1 && neiInP[v] < neiInP[PC[PC_rid[v]+1]]) swapID(PC_rid[v], PC_rid[v+1]);
+		// while(PC_rid[v] > P_end && neiInP[v] > neiInP[PC[PC_rid[v]-1]]) swapID(PC_rid[v], PC_rid[v]-1);
+		// orderCKeep(u, 0);
+		// verifyOrder();
+	}
+
+	void C2X(int id){
+		assert(inC(id));
+		int u=PC[id];
+		swapID(id,--C_end);
+		int nonadj_inC=C_end-neiInG[u];
+		MEInG-=nonadj_inC;
+		for (int i = pstart[u]; i < pstart[u+1]; i++)
+			neiInG[edges[i]]--;
+	}
+
+	void X2C(int pop_cnt){
+		while (pop_cnt--)
+		{
+			C_end++;
+			int u = PC[C_end-1];
+			int nonadj_inG=C_end-1-neiInG[PC[C_end-1]];
+			MEInG+=nonadj_inG;
+			//MEInP not change
+			for (int i = pstart[PC[C_end-1]]; i < pstart[PC[C_end-1]+1]; i++)
+				neiInG[edges[i]]++;
+			// while(PC_rid[u] < C_end-1 && neiInP[u] < neiInP[PC[PC_rid[u]+1]]) swapID(PC_rid[u], PC_rid[u+1]);
+			// while(PC_rid[u] > P_end && neiInP[u] > neiInP[PC[PC_rid[u]-1]]) swapID(PC_rid[u], PC_rid[u]-1);
+		}
+	}
+
+	int hiReduce(){
+		int push_cnt=0;
+		for (int id = P_end; id < C_end;)
+			if (neiInG[PC[id]]>=C_end-2 && neiInP[PC[id]]==P_end) C2P(id), push_cnt++;
+			else id++;
+		return push_cnt;
+	}
+
+	int lwReduce(){
+		int pop_cnt=0;
+		for (int id = P_end; id < C_end; )
+			if ( P_end - neiInP[PC[id]] + MEInP > k || 1+neiInG[PC[id]]+(k-MEInP)<=LB ) C2X(id), pop_cnt++;
+			else id++;
+		return pop_cnt;
+	}
+	int CBK0(){
+		int C_max = 0, k_cur=k-MEInP; int maxCol=0;
+		int i;
+		for (i = P_end; i < C_end; i++){
+			int u=PC[i]; if(P_end-neiInP[u]>0) continue;
+			for(int j=pstart[u];j<pstart[u+1];++j){
+				int nei=edges[j]; if(colorLabel[nei]!=-1){
+					colorUse[colorLabel[nei]]=true;
+				}
+			}
+			int col=0; while(colorUse[col]) col++; 
+			maxCol=max(maxCol,col);
+			for(int j=pstart[u];j<pstart[u+1];++j){
+				int nei=edges[j]; if(colorLabel[nei]!=-1){
+					colorUse[colorLabel[nei]]=false;
+				}
+			}
+			if(!colorSz[col]) C_max++;
+			colorLabel[u]=col; colorSz[col]++; 
+		}
+RET: 
+		for(int j=P_end;j<=i  && j<C_end;++j) colorLabel[PC[j]]=-1; 
+		for(int i=0;i<=maxCol;++i) colorSz[i]=0;
+		return P_end+C_max;
+	}
+	int CBK0Pro(){
+		int C_max = 0, k_cur=k-MEInP; int maxCol=0;
+		int i;
+		colorSz[0]=0;
+		for (i = P_end; i < C_end; i++){
+			int u=PC[i]; if(P_end-neiInP[u]>0) continue;
+			for(int j=pstart[u];j<pstart[u+1];++j){
+				int nei=edges[j]; if(colorIdx[nei]==treeIdx){
+					colorUse[colorLabel[nei]]=true;
+				}
+			}
+			int col=0; while(colorUse[col]) col++; 
+			if(col>maxCol) colorSz[col]=0;
+			maxCol=max(maxCol,col);
+			for(int j=pstart[u];j<pstart[u+1];++j){
+				int nei=edges[j]; if(colorIdx[nei]==treeIdx){
+					colorUse[colorLabel[nei]]=false;
+				}
+			}
+			if(!colorSz[col]) C_max++;
+			colorLabel[u]=col; colorSz[col]++; colorIdx[u]=treeIdx;
+		}
+RET: 
+		return P_end+C_max;
+	}
+
+	int CBK0ProMax(){
+		int C_max = 0, k_cur=k-MEInP; int maxCol=0;
+		int i;
+		colorSz[0]=0;
+		for (i = P_end; i < C_end; i++){
+			int u=PC[i]; if(P_end-neiInP[u]>0) continue;
+			int col=0; 
+			while(colorUseMtx[u*n+col]==treeIdx) col++;
+			if(col>maxCol) colorSz[col]=0;
+			maxCol=max(maxCol,col);
+			for(int j=pstart[u];j<pstart[u+1];++j){
+				int nei=edges[j];
+				colorUseMtx[nei*n+col]=treeIdx;
+			}
+			if(!colorSz[col]) C_max++;
+			colorLabel[u]=col; colorSz[col]++; colorIdx[u]=treeIdx;
+		}
+RET: 
+		return P_end+C_max;
+	}
+	int bound(int neis){
+		return min(P_end+neis+(k-MEInP),UB);
+	}
+	// void orderCKeep(int u, int op){
+	// 	if(inC(PC_rid[u])){
+	// 		while(PC_rid[u] < C_end-1 && neiInP[u] < neiInP[PC[PC_rid[u]+1]]) swapID(PC_rid[u], PC_rid[u+1]);
+	// 		while(PC_rid[u] > P_end && neiInP[u] > neiInP[PC[PC_rid[u]-1]]) swapID(PC_rid[u], PC_rid[u]-1);
+	// 	}
+	// 	for (int i = pstart[u]; i < pstart[u+1]; i++){
+	// 		int nei = edges[i];
+	// 		if(inC(PC_rid[nei])) {
+	// 			while(PC_rid[nei]<C_end-1 && neiInP[nei]<neiInP[PC[PC_rid[nei]+1]]) swapID(PC_rid[nei], PC_rid[nei]+1);
+	// 			while(PC_rid[nei]>P_end && neiInP[nei]>neiInP[PC[PC_rid[nei]-1]]) swapID(PC_rid[nei], PC_rid[nei]-1);
+	// 		}
+	// 	}
+	// }
+	// bool verifyOrder(){
+	// 	bool flag = true;
+	// 	for (int i = P_end; i < C_end-1; i++){
+	// 		// assert(neiInP[PC[i]]>=neiInP[PC[i+1]]);
+	// 		if(neiInP[PC[i]]<neiInP[PC[i+1]]) printC(),flag=false;
+	// 		assert(flag);
+	// 	}
+	// 	return flag;
+	// }
+	void printC(){
+		for (int i = P_end; i < C_end; i++){
+			cout<<PC[i]<<": "<<neiInP[PC[i]]<<" ";
+		}
+		cout<<endl;
+	}
+	int candibound(int neis){
+		int CMax=0, kCur=k-MEInP;
+		// if(kCur<=34) return P_end + neis + kCur;
+		vector<int> CCopy;
+		for (int i = P_end; i < C_end; i++) CCopy.push_back(PC[i]);
+		sort(CCopy.begin(), CCopy.end(), [&](int c1, int c2){
+			if(neiInP[c1] == neiInP[c2]) return c1<c2;
+			return neiInP[c1]>neiInP[c2];
+		});
+		CMax = calcuCMax(CCopy, kCur);
+		return P_end+CMax;
+	}
+	int calcuCMax(vector<int> &C_, int kCur){
+		int CMax = 0;
+		for(auto u:C_){
+			if(kCur >= P_end - neiInP[u]) CMax++, kCur -= (P_end-neiInP[u]);
+			else break;
+		}
+		return CMax;
+	}
+	int candiBucket(int neis){
+		int CMax=0, kCur=k-MEInP;
+		vector<vector<int>> nonNeiBucket(kCur+1);
+		for (int i = P_end; i < C_end; i++){
+			int u= PC[i];
+			nonNeiBucket[P_end-neiInP[u]].push_back(u);
+		}
+		for (int i = 0; ; i++){
+			if(kCur-i*nonNeiBucket[i].size()>=0) CMax+=nonNeiBucket[i].size(), kCur-=i*nonNeiBucket[i].size();
+			else {CMax+=kCur/i; break;}
+		}
+		return P_end+CMax;
+	}
+	int colorChenBd(int neis){
+		int C_max = 0, kCur=k-MEInP; int maxCol=0;
+		int cnt = 0;int i;
+		colorSz[0]=0;
+		for (i = P_end; i < C_end; i++){
+			int u=PC[i];
+			int col=0; 
+			while(colorUseMtx[u*n+col]==treeIdx) col++;
+			if(col>maxCol) colorSz[col]=0;
+			maxCol=max(maxCol,col);
+			for(int j=pstart[u];j<pstart[u+1];++j){
+				int nei=edges[j];
+				colorUseMtx[nei*n+col]=treeIdx;
+			}
+			colorLabel[u]=col; colorSz[col]++; colorIdx[u]=treeIdx;
+		}
+		while(kCur >= cnt){
+			for (int i = 0; i <= maxCol; i++)if(colorSz[i] > 0 && kCur >= cnt){
+				kCur -= cnt;
+				colorSz[i] --;
+				C_max++;
+			}
+			cnt++;
+		}
+		return P_end+C_max;
+	}
+	void store(int newLB){
+		KDC.resize(LB=newLB);
+		for (int i = 0; i < LB; i++) KDC[i]=PC[i];
+	}
+
+	void branch(){
+		// if(C_end <= LB) return; if(P_end > LB) store(P_end);
+		// verifyOrder();
+		int push_cnt=hiReduce();
+		int pop_cnt=lwReduce();
+	    Timer bt;
+		int pid=P_end, neis=0;
+		if(C_end <= LB) {goto REC;}
+		if (P_end > LB) store(P_end);
+		if (MEInG<=k) {store(C_end); goto REC;}
+		bt.restart();
+		treeIdx++;
+		// verifyOrder();
+		for(int id=P_end;id<C_end;id++) (neiInP[PC[pid]]>neiInP[PC[id]])&&(pid=id),neis+=(neiInP[PC[id]]==P_end);
+		pid= C_end-1;
+		// if(k-MEInP == 0 && CBK0ProMax()<=LB){boundTime+=bt.elapsed();colorBndPrune++;goto REC;}
+		// if (candibound(neis)<=LB) {boundTime+=bt.elapsed();boundPrune++;goto REC;}
+		// if (colorChenBd(neis)<=LB) {boundTime+=bt.elapsed();colorBndPrune++;goto REC;}
+		if (bound(neis)<=LB) {boundTime+=bt.elapsed();boundPrune++;goto REC;}
+		// if (CBK0()<=LB) {boundTime+=bt.elapsed();goto REC;}
+		tree_cnt++;
+		C2P(pid); 
+		// verifyOrder();
+		branch(); 
+		P2X(); 
+		// verifyOrder();
+		branch(); 
+		X2C(1);
+	REC:
+		X2C(pop_cnt); P2C(push_cnt);
+	}
+
+	void search(){
+		C2P(0); branch(); P2C(0);
+	}
+
+	void swapID(int i, int j) {
+		swap(PC[i], PC[j]);
+		PC_rid[PC[i]] = i;
+		PC_rid[PC[j]] = j;
+	}
+
+};
+
+{
+	int C_max = 0, k_cur=k-MEInP; int maxCol=0;
+		vector<int> C_; for(int i=P_end; i<C_end; i++) C_.push_back(PC[i]);
+		int i;
+		for (i = P_end; i < C_end; i++){
+			for (int j = i+1; j < C_end; j++) {
+				if(neiInP[PC[j]]>neiInP[PC[i]]) swapID(i,j);
+			}
+				int u=PC[i]; if(k_cur-(P_end-neiInP[u])<0) goto RET;
+				for(int j=pstart[u];j<pstart[u+1];++j){
+					int nei=edges[j]; if(colorss[nei]!=-1){
+						used[colorss[nei]]=true;
+					}
+				}
+				int col=0; while(used[col]) col++; 
+				maxCol=max(maxCol,col);
+				for(int j=pstart[u];j<pstart[u+1];++j){
+					int nei=edges[j]; if(colorss[nei]!=-1){
+						used[colorss[nei]]=false;
+					}
+				}
+				if(!szs[col]) tols[col]=k_cur;
+				colorss[u]=col; szs[col]++; 
+				tols[col]-=((szs[col]-1)+(P_end-neiInP[u]));
+				if(tols[col]>=0) C_max++, k_cur-=(P_end-neiInP[u]);
+		}
+RET:    
+		for(int j=P_end;j<=i  && j<C_end;++j) colorss[PC[j]]=-1; 
+		for(int i=0;i<=maxCol;++i) szs[i]=0;//!
+		for(int i=P_end; i<C_end; i++) PC[i]=C_[i-P_end], PC_rid[PC[i]]=i;
+		return P_end+C_max;
+}
