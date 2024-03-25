@@ -59,6 +59,8 @@ public:
 
 		for(int i = 0;i < _n;i ++) {
 			int id = _id_s[i];
+			if(id>=n) printf("id: %d, i: %d,n: %d\n", id, i,n);
+			assert(id < n);
 			int key = _key_s[id];
 			//assert(id < n); assert(key <= _key_cap);
 

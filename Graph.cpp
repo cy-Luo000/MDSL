@@ -7,11 +7,12 @@ Graph::Graph(const char *_dir, const long double _GAMMA) {
 	K = INT32_MAX;
 	gamma=_GAMMA;
 	n = m = 0;
-
+	max2hopCore=0;
+	maxDeg=0;
 	pstart = nullptr;
 	pend = pend_buf = nullptr;
 	edges = nullptr;
-
+	pstart2hop=nullptr; adj2hop.clear();
 	KDC.clear();
 
 	s_degree = s_edges = NULL;
@@ -43,6 +44,13 @@ Graph::~Graph() {
 	if(edges != nullptr) {
 		delete[] edges;
 		edges = nullptr;
+	}
+	if(pstart2hop!= nullptr){
+		delete[] pstart2hop;
+		pstart2hop=nullptr;
+	}
+	if(!adj2hop.empty()){
+		adj2hop.clear();
 	}
 	if(s_degree != NULL) {
 		delete[] s_degree;
@@ -119,7 +127,7 @@ void Graph::read() {
 				if(buff[j] == i||(j > 0&&buff[j] == buff[j-1])) continue;//buff[j]==i-->exist selfloop, buff[j]==buff[j-1]-->exist parallel edges
 				buff[idx ++] = buff[j];
 			}
-			degree[i] = idx;
+			degree[i] = idx; maxDeg=max(maxDeg, degree[i]);
 		}
 
 		pstart[i+1] = pstart[i] + degree[i];
@@ -128,7 +136,59 @@ void Graph::read() {
 	fclose(f);
 	delete[] degree;
 }
+int Graph::twoHopDegConstruct(int *pstart, int *edges, int *deg2hop){
+	Timer t;
 
+	std::vector<int> degvec;
+
+	pstart2hop=new int[n+1];
+	bool *vis=new bool[n];
+	memset(vis, false, n*sizeof(bool));
+	
+	int max2hop=0, min2hop=n;
+	vector<int> nei2hop;
+	int idx=0;
+	for (int u = 0; u < n; u++){
+		pstart2hop[u]=idx;
+		//move vertex i's neighbors into nei2hop
+		vis[u]=true;
+		for (int j = pstart[u]; j < pstart[u+1]; j++){
+			int v=edges[j];
+			if(vis[v]) continue;
+			// assert(vis[v]==false);
+			nei2hop.push_back(v);
+			vis[v]=true;
+		}
+		//move vertex i's 2hop neighbors into nei2hop
+		int curDeg=pstart[u+1]-pstart[u];
+		for (int j = 0; j < curDeg; j++){
+			int v=nei2hop[j];
+			//find the neighbors of u
+			for (int k = pstart[v]; k < pstart[v+1]; k++){
+				int w=edges[k];
+				if(vis[w]) continue;
+				nei2hop.push_back(w);
+				vis[w]=true;
+			}
+		}
+		for (int i = 0; i < nei2hop.size(); i++){
+			int v=nei2hop[i];
+			adj2hop.push_back(v);
+			idx++;
+		}
+		deg2hop[u]=idx-pstart2hop[u];
+		max2hop=max(max2hop, deg2hop[u]), min2hop=min(min2hop, deg2hop[u]);
+		// printf("%d: %d\n", u, deg2hop[u]);
+		for(auto v:nei2hop) vis[v]=false;
+		vis[u]=false;
+		nei2hop.clear();
+	}
+	pstart2hop[n]=idx;
+	// for (int i = 0; i < n; i++) printf("deg2hop: %d\n",deg2hop[i]);
+	assert(idx==adj2hop.size());
+	printf("The max 2hop is: %d, the min 2hop is: %d, the size of adj2hop is: %ld, the time of 2hop construction is: %.2f\n", max2hop, min2hop, adj2hop.size(),double(t.elapsed())/1000000);
+	return 0;
+}
 void Graph::write() {
 	FILE *fout = fopen("KDC.txt", "w");
 	fprintf(fout, "%u\n", KDC.size());
@@ -138,20 +198,40 @@ void Graph::write() {
 }
 
 void Graph::search() {
+	printf("enter search\n");
 	Timer t;
 	KDC.resize(0); //screen out trivial cases
 	int *seq = new int[n];
 	int *core = new int[n];
 	int *deg = new int[n];
+	int *deg2hop=new int[n];
+	int *core2hop=new int[n];
 	char *vis = new char[n];
 
 	ListLinearHeap *heap = new ListLinearHeap(n, n-1);
-	int UB = degen(n, seq, core, pstart, edges, deg, vis, heap, true);
-	// exit(0);
+	// int UB = degen(n, seq, core, pstart, edges, deg, vis, heap, true);
+	int UB=n; bool use2hop=true;
+	if(use2hop) {
+		if(n<=0){
+			// printf("enter 2hop construct\n");
+			twoHopDegConstruct(pstart, edges, deg2hop);
+			// printf("enter 2hop construct\n");
+			// exit(0);
+			UB=degenBy2hopDeg(n, seq, core2hop, pstart2hop, adj2hop.data(), deg2hop,vis, heap, true);//return ordered seq
+		}
+		else{
+			UB=degen2hop4Large(n,seq, core2hop,pstart, edges, deg2hop, vis, heap, true);
+		}
+	}else{
+		UB=degen(n, seq, core, pstart, edges, deg, vis, heap, true);
+	}
+	
+	
+	exit(0);
 	delete heap;
 	delete[] vis;
 	delete[] deg;
-
+	delete[] deg2hop;
 	HeuriSearcher heuri_solver; heuri_solver.search(); // Your code Here
 
 	if(KDC.size() < UB) {		
@@ -554,6 +634,154 @@ int Graph::degen(int n, int *seq, int *core, int *pstart, int *edges, int *degre
 	}
 	return UB;
 }
+int Graph::degenBy2hopDeg(int n, int *seq, int *core2hop, int *pstart2hop, int *adj2hop, int *deg2hop, char *vis, ListLinearHeap *heap, bool output){
+	// printf("enter dengeracy ordering\n");
+	Timer t;
+	int UB=n;
+	int del_n=0;
+	for (int i = 0; i < n; i++) seq[i]=i;
+	memset(vis,0,n*sizeof(char));
+	if(n>0){
+		heap->init(n,n-1,seq,deg2hop);
+		max2hopCore=0;
+		for (int i = 0; i < n; i++){
+			int u, key; heap->pop_min(u,key);
+			if(key > max2hopCore) max2hopCore=key; core2hop[u]=max2hopCore;
+			seq[i]=u; vis[u]=1;//vis should be false at start
+			for (int j = pstart2hop[u]; j < pstart2hop[u+1]; j++){
+				if(vis[adj2hop[j]]==0) heap->decrement(adj2hop[j],1);
+			}
+		}
+	}
+	UB=max2hopCore;
+	if(output) printf("MaxCore2hop: %d, UB: %d, Order Time: %.2f\n", max2hopCore, UB, double(t.elapsed())/1000000);
+	// printf("complete dengeracy ordering\n");
+}
+int Graph::degen2hop4Large(int n, int *seq, int *core2hop, int *pstart, int* edges, int *deg2hop, char *vis, ListLinearHeap *heap, bool output){
+	Timer t;
+	int UB=n;
+	int del_n=0;
+	int max2hop=0, min2hop=n;
+	bool *visNei=new bool[n];
+	memset(visNei, false, n*sizeof(bool));
+	memset(vis, 0, n*sizeof(char));
+	for (int i = 0; i < n; i++) seq[i]=i;//init sequence
+	
+	vector<int> nei2hop;
+	// for (int u = 0; u < n; u++){
+	// 	pstart2hop[u]=idx;
+	// 	//move vertex i's neighbors into nei2hop
+	// 	vis[u]=true;
+	// 	for (int j = pstart[u]; j < pstart[u+1]; j++){
+	// 		int v=edges[j];
+	// 		if(vis[v]) continue;
+	// 		// assert(vis[v]==false);
+	// 		nei2hop.push_back(v);
+	// 		vis[v]=true;
+	// 	}
+	// 	//move vertex i's 2hop neighbors into nei2hop
+	// 	int curDeg=pstart[u+1]-pstart[u];
+	// 	for (int j = 0; j < curDeg; j++){
+	// 		int v=nei2hop[j];
+	// 		//find the neighbors of u
+	// 		for (int k = pstart[v]; k < pstart[v+1]; k++){
+	// 			int w=edges[k];
+	// 			if(vis[w]) continue;
+	// 			nei2hop.push_back(w);
+	// 			vis[w]=true;
+	// 		}
+	// 	}
+	// 	for (int i = 0; i < nei2hop.size(); i++){
+	// 		int v=nei2hop[i];
+	// 		adj2hop.push_back(v);
+	// 		idx++;
+	// 	}
+	// 	deg2hop[u]=idx-pstart2hop[u];
+	// 	max2hop=max(max2hop, deg2hop[u]), min2hop=min(min2hop, deg2hop[u]);
+	// 	// printf("%d: %d\n", u, deg2hop[u]);
+	// 	for(auto v:nei2hop) vis[v]=false;
+	// 	vis[u]=false;
+	// 	nei2hop.clear();
+	// }
+	// pstart2hop[n]=idx;
+
+
+	//1. construct the deg2hop
+	printf("enter construction\n");
+	for (int u = 0; u < n; u++){
+		visNei[u]=true;
+		for (int j = pstart[u]; j < pstart[u+1]; j++){
+			int v=edges[j];
+			if(visNei[v]) continue;
+			nei2hop.push_back(v);
+			visNei[v]=true;
+		}
+		int curDeg=pstart[u+1]-pstart[u];
+		for (int j = 0; j < curDeg; j++){
+			int v=nei2hop[j];
+			//find the neighbors of u
+			for (int k = pstart[v]; k < pstart[v+1]; k++){
+				int w=edges[k];
+				if(visNei[w]) continue;
+				nei2hop.push_back(w);
+				visNei[w]=true;
+			}
+		}
+		deg2hop[u]=nei2hop.size();
+		min2hop=min(min2hop, deg2hop[u]), max2hop=max(max2hop, deg2hop[u]);
+		for(auto v: nei2hop) visNei[v]=false;
+		visNei[u]=false;
+		nei2hop.clear();
+	}
+	// for (int i = 0; i < n; i++) printf("deg2hop: %d\n",deg2hop[i]);
+	
+	printf("The max 2hop is: %d, the min 2hop is: %d, the time of 2hop construction is: %.2f\n", max2hop, min2hop, double(t.elapsed())/1000000);
+	printf("out construction\n");
+	//2. reorder by 2-hop degenracy
+	printf("enter degeneracy\n");
+	if(n>0){
+		heap->init(n,n-1,seq+del_n,deg2hop);
+		max2hopCore=0;
+		for (int i = 0; i < n; i++){
+			int u, key; heap->pop_min(u,key);
+			if(key > max2hopCore) max2hopCore=key; core2hop[u]=max2hopCore;
+			seq[i]=u; vis[u]=1;//vis should be false at start
+			// for (int j = pstart2hop[u]; j < pstart2hop[u+1]; j++) heap->decrement(adj2hop[j],1);
+			//find the 2hop 
+			visNei[u]=true;
+			for (int j = pstart[u]; j < pstart[u+1]; j++){
+				int v=edges[j];
+				// if v is in nei2hop or v is deleted
+				if(visNei[v] || vis[v]) continue;
+				nei2hop.push_back(v);
+				visNei[v]=true;
+			}
+			int curDeg=nei2hop.size();
+			for (int i = 0; i < curDeg; i++){
+				int v=nei2hop[i];
+				for (int j = pstart[v]; j < pstart[v+1]; j++){
+					int w=edges[j];
+					if(visNei[w] || vis[w]) continue;
+					nei2hop.push_back(w);
+					visNei[w]=true;
+				}
+			}
+
+			for(auto v: nei2hop) {
+				if(vis[v]==0) heap->decrement(v,1);
+				visNei[v]=false;
+			}
+			visNei[u]=false;
+			nei2hop.clear();
+		}
+	}
+	printf("out degeneracy\n");
+
+	UB=max2hopCore;
+	if(output) printf("MaxCore2hop: %d, UB: %d, Order Time: %.2f\n", max2hopCore, UB, double(t.elapsed())/1000000);
+}
+
+
 
 // in_mapping and out_mapping can be the same array
 // note that core is not maintained, and is assumed to not be used anymore

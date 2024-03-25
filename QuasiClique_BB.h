@@ -6,6 +6,8 @@
 using namespace std;
 
 long long treeCnt=0;
+class QuasiClique_BB;
+class QuasiClique_BB2hop;
 class QuasiClique_BB
 {
 private:

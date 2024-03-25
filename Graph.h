@@ -13,6 +13,11 @@ private:
 	int *pend; //used in search
 	int *pend_buf;
 	int *edges; //adjacent ids of edges
+	//! add 2 hop
+	int *pstart2hop;
+	std::vector<int> adj2hop;
+	int max2hopCore;
+	int maxDeg;
 	long double gamma;
 	std::vector<int> KDC;
 
@@ -51,8 +56,9 @@ private:
 	void induceSubgraph(int u, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, int *Q, int* degree, char *exists, int *pend, char *deleted, int *edgelist_pointer) ;
 
 	int degen(int n, int *peel_sequence, int *core, int *pstart, int *edges, int *degree, char *vis, ListLinearHeap *heap, bool output) ;
-	int twoHopDegConstruct(int n, int m);
-	int degenBy2hopDeg(int n, int *peel_sequence, int *core, int *pstart, int *edges, int *degree, char *vis, ListLinearHeap *heap, bool output);
+	int twoHopDegConstruct(int *pstart, int *edges, int *deg2hop);//input pstart and edges output deg2hop
+	int degenBy2hopDeg(int n, int *peel_sequence, int *core2hop, int *pstart2hop, int* adj2hop, int *deg2hop, char *vis, ListLinearHeap *heap, bool output);
+	int degen2hop4Large(int n, int *seq, int *core2hop, int *pstart, int* edges, int *deg2hop, char *vis, ListLinearHeap *heap, bool output);
 	void shrink_graph(int &n, int &m, int *peel_sequence, int *core, int *out_mapping, int *in_mapping, int *rid, int *pstart, int *edges) ;
 	void oriented_triangle_counting(int n, int m, int *peel_sequence, int *pstart, int *pend, int *edges, int *tri_cnt, int *adj) ;
 	void reorganize_oriented_graph(int n, int *tri_cnt, int *edge_list, int *pstart, int *pend, int *pend2, int *edges, int *edgelist_pointer, int *buf) ;
@@ -66,4 +72,5 @@ private:
 
 	
 };
+
 #endif
