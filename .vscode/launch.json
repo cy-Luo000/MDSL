@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/QDC-init",
-            "args": ["./data/soc-dolphins.bin","0.89"],
+            "args": ["./data/scc_rt_gop.bin","0.95"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

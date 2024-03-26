@@ -139,7 +139,7 @@ void Graph::read() {
 int Graph::twoHopDegConstruct(int *pstart, int *edges, int *deg2hop){
 	Timer t;
 
-	std::vector<int> degvec;
+	// std::vector<int> degvec;
 
 	pstart2hop=new int[n+1];
 	bool *vis=new bool[n];
@@ -227,7 +227,7 @@ void Graph::search() {
 	}
 	
 	
-	exit(0);
+	// exit(0);
 	delete heap;
 	delete[] vis;
 	delete[] deg;
@@ -238,6 +238,7 @@ void Graph::search() {
 		int old_size = KDC.size();
 		int *out_mapping = new int[n];
 		int *rid = new int[n];
+		bool twoHopSearch=true;
 
 		shrink_graph(n, m, seq, core, out_mapping, NULL, rid, pstart, edges);
 		// exit(0);
@@ -270,22 +271,10 @@ void Graph::search() {
 
 		// exit(0);
 		// extract_graph(n,m,deg,id)
-		if(true){
-			QuasiClique_BB *MQCSolver=new QuasiClique_BB();
-			MQCSolver->load_graph(n,pstart,pstart+1,edges);
-			printf("graph load success!\n");
-			// exit(0);
-			// KDC.clear(); old_size=0;
-			MQCSolver->MQCSearch(gamma, UB, KDC);
-			// if(KDC.size()>old_size){
-			// 	for (int i = 0; i < KDC.size(); i++) KDC[i]=out_mapping[KDC[i]];
-			// }
-			printf("BBSearch complete, tree count: %lld\n", treeCnt);
-			// exit(0);
-			delete MQCSolver;
-		}
+		
 		int *t_degree = new int[n];
-		if(false){
+		if(twoHopSearch){
+			printf("enter two hop search\n");
 			int max_n = n - Qv_n;
 			//This is the structure for subgraph
 			s_degree = new int[max_n];
@@ -303,39 +292,68 @@ void Graph::search() {
 			s_deleted = new char[m/2];
 
 			vector<pair<int,int> > vp; vp.reserve(m/2);
-			
+			printf("current QC size: %d\n", KDC.size());
 			for(int i = 0;i < n&&m&&KDC.size() < UB;i ++) {
-			int u, key; linear_heap->pop_min(u, key);
-			if(key < KDC.size()-K) {
-				if(deg[u] != 0) {
-					Qv[0] = u; Qv_n = 1;
-					m -= 2*peeling(n, linear_heap, Qv, Qv_n, KDC.size()-K, Qe, KDC.size()-K-1, tri_cnt, active_edgelist, active_edgelist_n, edge_list, edgelist_pointer, deleted, deg, pstart, pend, edges, exists);
+				// printf("enter subgraph search\n");
+				int u, key; linear_heap->pop_min(u, key);
+				if(key < int(KDC.size()-K)) {
+					if(deg[u] != 0) {
+						Qv[0] = u; Qv_n = 1;
+						m -= 2*peeling(n, linear_heap, Qv, Qv_n, KDC.size()-K, Qe, KDC.size()-K-1, tri_cnt, active_edgelist, active_edgelist_n, edge_list, edgelist_pointer, deleted, deg, pstart, pend, edges, exists);
+					}
+					continue;
 				}
-				continue;
+				// printf("m: %d\n",m);
+				if(!m) break;
+				// printf("enter subgraph search-lcy\n");
+				int *ids = Qv; int ids_n = 0; int subUB=UB;
+				int pre_size0;
+				// do{
+				// 	pre_size0=KDC.size();
+				// 	induceSubgraph(u, ids, ids_n, rid, vp, Qe, t_degree, exists, pend, deleted, edgelist_pointer);
+				// 	if(ids_n > KDC.size()&& vp.size()*2 < m) subUB=min(UB,subgraph_heuri(ids, ids_n, vp, rid, Qv, Qe, exists));
+				// }
+				// while(KDC.size()!=pre_size0);
+				induceSubgraph(u, ids, ids_n, rid, vp, Qe, t_degree, exists, pend, deleted, edgelist_pointer);
+				// printf("vp: %d\n", vp.size());
+				// exit(0);
+				// if(ids_n > KDC.size()&& vp.size()*2 < m) subUB=min(UB,subgraph_heuri(ids, ids_n, vp, rid, Qv, Qe, exists));
+				int pre_size = KDC.size();
+				// printf("pre_size: %d, ids_n: %d, subUB: %d\n", pre_size, ids_n, subUB);
+				if(ids_n > pre_size && subUB> pre_size) { 
+					printf("enter subgraph %d search\n", i);
+					if(i==0){
+						int a=0;
+					}
+					QuasiClique_BB *MQCSolver=new QuasiClique_BB();
+					MQCSolver->load_subgraph(gamma, ids_n, vp, KDC,UB);
+					MQCSolver->printInfo();
+					// exit(0);
+					// printf("enter search\n");
+					MQCSolver->MQCSearch2hop(KDC);
+					
+					// ExactSearcher exact_solver(K, ids_n, vp, KDC, UB); exact_solver.search();
+					if(KDC.size() != pre_size) for(int j = 0;j < KDC.size();j ++) KDC[j] = ids[KDC[j]];
+					printf("current QC size: %d\n", KDC.size());
+					// exit(0);
+				}
+				Qv[0] = u; Qv_n = 1;
+				m -= 2*peeling(n, linear_heap, Qv, Qv_n, KDC.size()-K, Qe, KDC.size()-K-1, tri_cnt, active_edgelist, active_edgelist_n, edge_list, edgelist_pointer, deleted, deg, pstart, pend, edges, exists);
 			}
-			if(!m) break;
-
-			int *ids = Qv; int ids_n = 0; int subUB=UB;
-			int pre_size0;
-			// do{
-			// 	pre_size0=KDC.size();
-			// 	induceSubgraph(u, ids, ids_n, rid, vp, Qe, t_degree, exists, pend, deleted, edgelist_pointer);
-			// 	if(ids_n > KDC.size()&& vp.size()*2 < m) subUB=min(UB,subgraph_heuri(ids, ids_n, vp, rid, Qv, Qe, exists));
-			// }
-			// while(KDC.size()!=pre_size0);
-			induceSubgraph(u, ids, ids_n, rid, vp, Qe, t_degree, exists, pend, deleted, edgelist_pointer);
-			// if(ids_n > KDC.size()&& vp.size()*2 < m) subUB=min(UB,subgraph_heuri(ids, ids_n, vp, rid, Qv, Qe, exists));
-			int pre_size = KDC.size();
-			if(ids_n > pre_size && subUB> pre_size) { 
-				QuasiClique_BB *MQCSolver=new QuasiClique_BB();
-				MQCSolver->load_subgraph(gamma, ids_n, vp, KDC,UB); MQCSolver->MQCSearch2hop();
-				// ExactSearcher exact_solver(K, ids_n, vp, KDC, UB); exact_solver.search();
-				if(KDC.size() != pre_size) for(int j = 0;j < KDC.size();j ++) KDC[j] = ids[KDC[j]];
-			}
-			Qv[0] = u; Qv_n = 1;
-			m -= 2*peeling(n, linear_heap, Qv, Qv_n, KDC.size()-K, Qe, KDC.size()-K-1, tri_cnt, active_edgelist, active_edgelist_n, edge_list, edgelist_pointer, deleted, deg, pstart, pend, edges, exists);
-		}
 		
+		}else{
+			QuasiClique_BB *MQCSolver=new QuasiClique_BB();
+			MQCSolver->load_graph(n,pstart,pstart+1,edges);
+			printf("graph load success!\n");
+			// exit(0);
+			// KDC.clear(); old_size=0;
+			MQCSolver->MQCSearch(gamma, UB, KDC);
+			// if(KDC.size()>old_size){
+			// 	for (int i = 0; i < KDC.size(); i++) KDC[i]=out_mapping[KDC[i]];
+			// }
+			printf("BBSearch complete, tree count: %lld\n", treeCnt);
+			// exit(0);
+			delete MQCSolver;
 		}
 		if(KDC.size() > old_size) for(int i = 0;i < KDC.size();i ++) KDC[i] = out_mapping[KDC[i]];
 		
@@ -349,7 +367,7 @@ void Graph::search() {
 		printf("avg subgraph dense: %lf\n", avgSubDense);
 		printf("Max Mutual Exclusive: %d, Mutual exclusive sum: %lld, Mutual exclusive avg: %lf, Mutual exclusive dense avg: %lf\n",MaxMuExNum, MuExSum, (double)MuExSum/(tree_cnt+0.1), denSum/(denNum+0.001));
 		printf("Sum of Mutual Exclusive in color set: %lld, max mutual exclusive in color set: %d\n", colMuExSum, maxColMuNum);
-		printf("Search Tree Size: %lld, the sum of induced graphs: %lld, the num of sub graphs: %d, avg size: %.2f\n",tree_cnt, szSum, subNum, double(szSum)/subNum);
+		printf("Search Tree Size: %lld, the sum of induced graphs: %lld, the num of sub graphs: %d, avg size: %.2f\n",treeCnt, szSum, subNum, double(szSum)/subNum);
 #endif
 		
 		
@@ -655,6 +673,7 @@ int Graph::degenBy2hopDeg(int n, int *seq, int *core2hop, int *pstart2hop, int *
 	}
 	UB=max2hopCore;
 	if(output) printf("MaxCore2hop: %d, UB: %d, Order Time: %.2f\n", max2hopCore, UB, double(t.elapsed())/1000000);
+	return UB;
 	// printf("complete dengeracy ordering\n");
 }
 int Graph::degen2hop4Large(int n, int *seq, int *core2hop, int *pstart, int* edges, int *deg2hop, char *vis, ListLinearHeap *heap, bool output){
@@ -668,44 +687,6 @@ int Graph::degen2hop4Large(int n, int *seq, int *core2hop, int *pstart, int* edg
 	for (int i = 0; i < n; i++) seq[i]=i;//init sequence
 	
 	vector<int> nei2hop;
-	// for (int u = 0; u < n; u++){
-	// 	pstart2hop[u]=idx;
-	// 	//move vertex i's neighbors into nei2hop
-	// 	vis[u]=true;
-	// 	for (int j = pstart[u]; j < pstart[u+1]; j++){
-	// 		int v=edges[j];
-	// 		if(vis[v]) continue;
-	// 		// assert(vis[v]==false);
-	// 		nei2hop.push_back(v);
-	// 		vis[v]=true;
-	// 	}
-	// 	//move vertex i's 2hop neighbors into nei2hop
-	// 	int curDeg=pstart[u+1]-pstart[u];
-	// 	for (int j = 0; j < curDeg; j++){
-	// 		int v=nei2hop[j];
-	// 		//find the neighbors of u
-	// 		for (int k = pstart[v]; k < pstart[v+1]; k++){
-	// 			int w=edges[k];
-	// 			if(vis[w]) continue;
-	// 			nei2hop.push_back(w);
-	// 			vis[w]=true;
-	// 		}
-	// 	}
-	// 	for (int i = 0; i < nei2hop.size(); i++){
-	// 		int v=nei2hop[i];
-	// 		adj2hop.push_back(v);
-	// 		idx++;
-	// 	}
-	// 	deg2hop[u]=idx-pstart2hop[u];
-	// 	max2hop=max(max2hop, deg2hop[u]), min2hop=min(min2hop, deg2hop[u]);
-	// 	// printf("%d: %d\n", u, deg2hop[u]);
-	// 	for(auto v:nei2hop) vis[v]=false;
-	// 	vis[u]=false;
-	// 	nei2hop.clear();
-	// }
-	// pstart2hop[n]=idx;
-
-
 	//1. construct the deg2hop
 	printf("enter construction\n");
 	for (int u = 0; u < n; u++){
@@ -779,6 +760,7 @@ int Graph::degen2hop4Large(int n, int *seq, int *core2hop, int *pstart, int* edg
 
 	UB=max2hopCore;
 	if(output) printf("MaxCore2hop: %d, UB: %d, Order Time: %.2f\n", max2hopCore, UB, double(t.elapsed())/1000000);
+	return UB;
 }
 
 

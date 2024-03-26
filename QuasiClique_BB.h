@@ -13,6 +13,8 @@ class QuasiClique_BB
 private:
     int n;
     int m;
+    int maxDeg;
+    int minDeg;
     double gamma;
     int UB;
     int P_end;int C_end;
@@ -29,14 +31,17 @@ private:
     
 
     vector<int> QC;// current best solution
-    int LB;// current best size
+    
 public:
+    int LB;// current best size
     QuasiClique_BB();
     ~QuasiClique_BB();
     void load_graph(int _n,int *_pstart, int *_pend, int *_edges);
     void load_subgraph(double _gamma, int _n, vector<pair<int,int>> &_vp, vector<int> &_QC, int _UB);
+    void printInfo();
     void MQCSearch(double _gamma, int _UB, std::vector<int> &_QC);
-    void MQCSearch2hop();
+    void MQCSearch2hop(vector<int> &_QC);
+    bool verifyQC();
     void branch(int level);
     void CtoP(int u, int level);
     void PtoC(int u, int level);
@@ -53,6 +58,7 @@ public:
 
 QuasiClique_BB::QuasiClique_BB(){
     n=0; m=0; gamma=0.0;
+    maxDeg=0, minDeg=0;
     MEInP=MEInG=0;
     pstart=NULL;
     edges=NULL;
@@ -99,7 +105,7 @@ void QuasiClique_BB::load_graph(int _n,int *_pstart, int *_pend, int *_edges){
     n=_n;
     C_end=n;
     //m is initially zero
-    int MaxDeg=0;
+    minDeg=n;
     for (int i = 0; i < n; i++) m+=_pend[i]-_pstart[i];
     assert(pstart==NULL);
     pstart=new int[n+1]; edges=new int[m];
@@ -111,22 +117,26 @@ void QuasiClique_BB::load_graph(int _n,int *_pstart, int *_pend, int *_edges){
         PC[i]=PC_rid[i]=i;
         pstart[i]=m;
         neiInG[i]=_pend[i]-_pstart[i];
-        MaxDeg=max(MaxDeg,neiInG[i]);
+        maxDeg=max(maxDeg,neiInG[i]); minDeg=min(minDeg, neiInG[i]);
         for(int j = _pstart[i];j < _pend[i];j ++) edges[m ++] = _edges[j];
     }
     //renew the missing edges in G
     MEInG=n*(n-1)/2-m/2;
-    printf("load graph of size n=%u, m=%u (undirected), density=%.5lf, max degree=%d\n", n, m/2, double(m)/n/(n-1), MaxDeg);
+    printf("load graph of size n=%u, m=%u (undirected), density=%.5lf, max degree=%d\n", n, m/2, double(m)/(n*(n-1)), maxDeg);
 }
 
 void QuasiClique_BB::load_subgraph(double _gamma, int _n, vector<pair<int,int>> &_vp, vector<int> &_QC, int _UB){
     gamma=_gamma;
     n=_n;
     UB=_UB;
+    minDeg=n;
+    C_end=n;
+    m=_vp.size();
     //initialize the current best solution
-    QC.resize(_QC.size());
-    for (int i = 0; i < QC.size(); i++) QC[i]=_QC[i];
-    LB=QC.size();
+    // QC.resize(_QC.size());
+    // for (int i = 0; i < QC.size(); i++) QC[i]=_QC[i];
+    // QC=_QC;
+    LB=_QC.size();
     matrix=new bool[n*n];
     PC=new int[n];
     PC_rid=new int[n];
@@ -135,12 +145,11 @@ void QuasiClique_BB::load_subgraph(double _gamma, int _n, vector<pair<int,int>> 
     neiInP= new int[n];
     neiInG= new int[n];
     memset(matrix, false, (n*n)*sizeof(bool));
-    memset(neiInG, 0, n*sizeof(int));
+    memset(neiInP, 0, n*sizeof(int));
 
     for(auto pr:_vp){
         int u=pr.first, v=pr.second; isAdj(u,v)=isAdj(v,u)=true;
     }
-    // m=0;
     int idx=0; 
     //construct the subgraph of pstart and edges
     for (int i = 0; i < n; i++){
@@ -149,10 +158,16 @@ void QuasiClique_BB::load_subgraph(double _gamma, int _n, vector<pair<int,int>> 
             if(isAdj(i,j)) edges[idx++]=j;
         }
         neiInG[i]=idx-pstart[i];
+        maxDeg=max(maxDeg, neiInG[i]), minDeg=min(minDeg, neiInG[i]);
         PC[i]=i; PC_rid[i]=i;
     }
     pstart[n]=idx;
     m=idx/2;
+    MEInG=n*(n-1)/2-m;
+}
+void QuasiClique_BB::printInfo(){
+    printf("vertex num: %d, edge num: %d\n",n,m);
+    printf("max degree: %d, min degree: %d\n", maxDeg,minDeg);
 }
 void QuasiClique_BB::MQCSearch(double _gamma, int _UB, std::vector<int> &_QC){
     gamma=_gamma;
@@ -177,13 +192,40 @@ void QuasiClique_BB::MQCSearch(double _gamma, int _UB, std::vector<int> &_QC){
     }
 }
 
-void QuasiClique_BB::MQCSearch2hop(){
-
+bool QuasiClique_BB::verifyQC(){
+    bool flag=false;
+    int m_qc=0, n_qc=this->QC.size();
+    double density=0.0;
+    if(n_qc==0){
+        printf("trivial gamma quasi clique\n");
+        return true;
+    }
+    for (int i = 0; i < QC.size(); i++){
+        for (int j = i+1; j < QC.size(); j++){
+            if(isAdj(QC[i], QC[j])) m_qc++;
+        }
+    }
+    if(2.0*m_qc>= gamma*(double)(n_qc)*(n_qc-1)){
+        return true;
+    }
+    density=2.0*m_qc/((double)n_qc*(n_qc-1));
+    printf("QC vNum: %d, QC eNum: %d, QC density: %.2f\n",n_qc, m_qc, density);
+    return false;
+}
+void QuasiClique_BB::MQCSearch2hop(vector<int> &_QC){
+    Timer t;
     int u=PC[0];
     CtoP(u, 0);
     printf("enter left branch\n");
     branch(1);
     PtoC(u,0);
+    if(LB>_QC.size()){
+        printf("renew result\n");
+        _QC.resize(LB);
+        for (int i = 0; i < QC.size(); i++) _QC[i]=QC[i];
+    }
+    printf("subgraph search complete, search time: %.2f, treeCnt: %d\n",double(t.elapsed())/1000000, treeCnt);
+
 }
 
 void QuasiClique_BB::branch(int level){
@@ -193,8 +235,20 @@ void QuasiClique_BB::branch(int level){
     int u=PC[P_end];
     // if(verifyQC()) 
     if(C_end <= LB) goto REC;
-    if (P_end > LB && (double)( P_end*(P_end-1)-2*MEInP )/( P_end*(P_end-1) ) >= gamma ) store(P_end);
-    if ((double)( C_end*(C_end-1)-2*MEInG )/( C_end*(C_end-1) ) >= gamma) {store(C_end); goto REC;}
+    if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= gamma* (double)P_end*(P_end-1) ) {
+        store(P_end);
+        printf("P_end: %d, MEInP: %d\n", P_end, MEInP);
+        if(verifyQC()==false){
+            printf("tree cnt: %d\n", treeCnt);
+        }
+        assert(verifyQC());
+    }
+    if (( (double)(C_end)*(C_end-1)-2*MEInG ) >= gamma*( (double)(C_end)*(C_end-1) )) {
+        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
+        store(C_end); 
+        assert(verifyQC());
+        goto REC;
+    }
 
     //if G[C] is a quasi clique
     if(P_end>=C_end) goto REC; //if candidate set is empty, then return  
