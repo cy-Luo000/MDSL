@@ -212,6 +212,7 @@ void Graph::search() {
 	// int UB = degen(n, seq, core, pstart, edges, deg, vis, heap, true);
 	int UB=n; bool use2hop=true;
 	if(use2hop) {
+		printf("2 hop degen order\n");
 		if(n<=0){
 			// printf("enter 2hop construct\n");
 			twoHopDegConstruct(pstart, edges, deg2hop);
@@ -223,6 +224,7 @@ void Graph::search() {
 			UB=degen2hop4Large(n,seq, core2hop,pstart, edges, deg2hop, vis, heap, true);
 		}
 	}else{
+		printf("degen order\n");
 		UB=degen(n, seq, core, pstart, edges, deg, vis, heap, true);
 	}
 	
@@ -232,8 +234,12 @@ void Graph::search() {
 	delete[] vis;
 	delete[] deg;
 	delete[] deg2hop;
-	HeuriSearcher heuri_solver; heuri_solver.search(); // Your code Here
-
+	printf("enter heuristc search\n");
+	printf("the bestSz is: %d\n", int(KDC.size()));
+	HeuriSearcher* heuri_solver=new HeuriSearcher(n,m,pstart, edges, gamma, maxDeg, KDC);
+	heuri_solver->search(KDC); // Your code Here
+	printf("bestSz after the heu search: %d\n",int(KDC.size()));
+	// exit(0);
 	if(KDC.size() < UB) {		
 		int old_size = KDC.size();
 		int *out_mapping = new int[n];
@@ -322,9 +328,6 @@ void Graph::search() {
 				// printf("pre_size: %d, ids_n: %d, subUB: %d\n", pre_size, ids_n, subUB);
 				if(ids_n > pre_size && subUB> pre_size) { 
 					printf("enter subgraph %d search\n", i);
-					if(i==0){
-						int a=0;
-					}
 					QuasiClique_BB *MQCSolver=new QuasiClique_BB();
 					MQCSolver->load_subgraph(gamma, ids_n, vp, KDC,UB);
 					MQCSolver->printInfo();
@@ -1080,7 +1083,7 @@ void Graph::print_info(){
 	double density=m/(1.0*n*(n-1));
 	// printf("#graph=%s\n#gamma=%lf\n",dir, gamma);
 	printf("graph=%s\n",this->dir.c_str());
-	printf("n=%d, m=%d, dense=%.3f\n", this->n, this->m,density);
+	printf("n=%d, m=%d, max degree=%d, dense=%.3f\n", this->n, this->m, maxDeg, density);
 	printf("gamma=%Lf\n ", gamma);
 	cout<<"miss edges upper bound: "<<K<<endl;
 }

@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/QDC-init",
-            "args": ["./data/scc_rt_gop.bin","0.95"],
+            "args": ["./data/chesapeake.bin","0.95"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

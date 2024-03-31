@@ -3,11 +3,160 @@
 
 #include "Utility.h"
 #include "Timer.h"
+#include "LinearHeap.h"
 using namespace std;
 
 long long treeCnt=0;
 class QuasiClique_BB;
 class QuasiClique_BB2hop;
+
+class HeuriSearcher{
+public:
+	int n;
+	int m;
+	int* pstart;
+	int* edges;
+    // int k; //total missing edges
+	double gamma;
+	int maxDeg;
+    int LB; // the lowerbound
+    int UB; // the upperbound
+	
+    int n_s, m_s;
+	std::vector<int> id_s;
+	std::vector<int> rid_s;
+	std::vector<int> deg_s;
+    std::vector<int> core_s;
+    std::vector<int> seq_s;
+	bool* exist_s;
+    char* vis_s;
+	std::vector<int> heuQC;
+	std::vector<std::vector<int>> adjList;
+    // ListLinearHeap *s_heap;
+	// vector<int> &KDC;
+
+    // int* PC;
+    // int* PC_rid;// to record the positon in PC of each vertex v of G
+    // int P_end;// the P is from PC[0] to PC[P_end-1]
+    // int C_end;// the C is from PC[P_end] to PC[C_end-1]
+
+    // int* neiInP;// to record every vertex's degree in P
+    // int* neiInG;// to record every vertex's degree in C
+    // int MEInP;// the missing edges in P 
+    // int MEInG;// the missing edges in C
+
+	// Your code
+	HeuriSearcher(int _n,int _m, int *_pstart, int *_edges, double _gamma, int _maxDeg, std::vector<int>& _QC){
+		n=_n, m=_m, gamma=_gamma;
+		this->pstart=_pstart;
+		this->edges=_edges;
+		maxDeg=_maxDeg;
+		exist_s=new bool[n];
+        vis_s=new char[1+maxDeg];
+		memset(exist_s, false, n*sizeof(bool));
+        LB=int(_QC.size());
+        
+	}
+ 	void induceNei(int u){
+		n_s=m_s=0;
+		//1. get the max id
+		int maxId=u;
+		for (int i = pstart[u]; i < pstart[u+1]; i++) maxId=max(maxId, edges[i]);
+		rid_s.resize(1+maxId);
+		//2. get the veritces
+		id_s.push_back(u); rid_s[u]=id_s.size()-1; exist_s[u]=true;
+		
+		for (int i = pstart[u]; i < pstart[u+1]; i++){
+			id_s.push_back(edges[i]);
+            exist_s[edges[i]]=true;
+			rid_s[edges[i]]=id_s.size()-1;
+		}
+        n_s=id_s.size(); 
+        core_s.resize(n_s);//core_s initialization
+        assert(seq_s.empty());
+        for (int i = 0; i < n_s; i++) seq_s.push_back(i);  
+		//3. get the edges
+		for(auto v: id_s) exist_s[v]=true;
+		adjList.resize(int(id_s.size()));
+		for (int i = 0; i < id_s.size(); i++){
+			int v=id_s[i];
+			for (int j = pstart[v]; j < pstart[v+1]; j++){
+				int w=edges[j];
+				if(exist_s[w]) {
+					adjList[rid_s[v]].push_back(rid_s[w]);
+				}
+			}
+		}
+		//4. construct the degrees
+		for (int i = 0; i < n_s; i++) deg_s.push_back(int(adjList[i].size())), m_s+=deg_s[i];
+        m_s/=2;
+        //5. clear the exist
+        for (int i = 0; i < n_s; i++) exist_s[id_s[i]]=false;   
+	}
+    int degenHeu(int u_0, int u_deg, ListLinearHeap *heap){
+        int subSz=1+u_deg, s_maxcore=0;
+        int edgeCnt_s=m_s, idx=subSz;
+        // printf("u0: %d, subSz: %d\n",u_0, subSz);
+        memset(vis_s, 0, subSz*sizeof(char));
+        heap->init(subSz, subSz-1, seq_s.data(), deg_s.data());
+        //delete the vertex by degeneracy order
+        for (int i = 0; i < subSz; i++){
+            if(idx == subSz && edgeCnt_s >= ceil(gamma*(1.0*(subSz - i)*(subSz - i - 1)/2.0)) ) idx = i;
+            int u, key; heap->pop_min(u,key);
+            if(key> s_maxcore) s_maxcore=key; 
+            core_s[u]=s_maxcore; vis_s[u]=1; seq_s[i]=u;
+            for(auto v: adjList[u]){
+                if(vis_s[v]==0) heap->decrement(v,1);
+            }
+            edgeCnt_s-=key;
+        }
+        if(subSz-idx>heuQC.size()){
+            printf("renew heuQC\n");
+            LB=subSz-idx;
+            heuQC.clear();
+            for (int i = idx; i < subSz; i++) heuQC.push_back(id_s[seq_s[i]]);
+            if(!checkExist(u_0, heuQC)) {printf("error, not include u: %d\n", u_0);}//this should be useless because u_0 is adjacent to all vertices 
+        }
+
+        seq_s.clear();
+        return n;
+    }
+	void clear(){
+		id_s.clear(), rid_s.clear();
+		for(auto edgeVec: adjList) edgeVec.clear();
+		adjList.clear(); deg_s.clear();
+	}
+    bool checkExist(int u, std::vector<int> &_QC){
+        bool flag=false;
+        for(auto v:_QC){
+            if(v==u) {flag=true;break;}
+        }
+        return flag;
+    }
+	void search(std::vector<int> &_QC){
+        int max_n=1+maxDeg;
+        ListLinearHeap* s_heap=new ListLinearHeap(max_n, max_n-1);
+        for (int u = 0; u < n; u++){
+            //1. build the subgraph
+            if(u==0){
+                printf("check\n");
+            }
+            // printf("heuristic search subgraph: %d\n",u);
+            induceNei(u);
+            int u_deg=adjList[rid_s[u]].size();
+            this->UB=degenHeu(u, u_deg, s_heap);
+            this->clear();
+        }
+        if(LB>int(_QC.size())){
+            _QC.resize(LB);
+            for (int i = 0; i < LB; i++){
+                _QC[i]=heuQC[i];
+            }
+            printf("renew the result in heuristic search\n");
+        }
+	}
+};
+
 class QuasiClique_BB
 {
 private:
@@ -28,9 +177,14 @@ private:
     int *PC_rid;
     int *neiInG;
     int *neiInP;
-    
-
+    //graph coloring
+    int *colUseMtx;
+    int *colorSz;
     vector<int> QC;// current best solution
+
+    // //graph coloring
+    // int *colUseMtx;
+    // int *colorSz;
     
 public:
     int LB;// current best size

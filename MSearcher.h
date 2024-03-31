@@ -201,30 +201,6 @@ private:
 	void store_a_larger_clique(const ui clique_size, const char *info, char print);
 };
 
-class HeuriSearcher{
-public:
-	int n;
-	int m;
-	int* pstart;
-	int* edges;
-    int k; //total missing edges
-    int LB; // the lowerbound
-    int UB; // the upperbound
-	// vector<int> &KDC;
-
-    // int* PC;
-    // int* PC_rid;// to record the positon in PC of each vertex v of G
-    // int P_end;// the P is from PC[0] to PC[P_end-1]
-    // int C_end;// the C is from PC[P_end] to PC[C_end-1]
-
-    // int* neiInP;// to record every vertex's degree in P
-    // int* neiInG;// to record every vertex's degree in C
-    // int MEInP;// the missing edges in P 
-    // int MEInG;// the missing edges in C
-
-	// Your code
-	void search(){}
-};
 
 class colorPacker
 {
