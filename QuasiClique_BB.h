@@ -170,6 +170,7 @@ private:
     int MEInP, MEInG;
     int *pstart;
     int *edges;
+    long long treeIdx;
     // bool *adjmtx;
     bool* matrix;
 
@@ -178,13 +179,13 @@ private:
     int *neiInG;
     int *neiInP;
     //graph coloring
-    int *colUseMtx;
-    int *colorSz;
-    vector<int> QC;// current best solution
-
-    // //graph coloring
-    // int *colUseMtx;
-    // int *colorSz;
+    long long *colUseMtx;//to record if color is used
+    int *colorSz;// the size of each color bucket
+    int *colorVec;// the vertex in each color set
+    std::vector<std::vector<int>> nonNeiB;
+    std::vector<int> weiB;
+    std::vector<int> weiPreSum;//the prefix sum of weight bucket
+    std::vector<int> QC;// current best solution
     
 public:
     int LB;// current best size
@@ -195,7 +196,9 @@ public:
     void printInfo();
     void MQCSearch(double _gamma, int _UB, std::vector<int> &_QC);
     void MQCSearch2hop(vector<int> &_QC);
+    int sortBound();
     bool verifyQC();
+    bool verify2hop(int _end);
     void branch(int level);
     void CtoP(int u, int level);
     void PtoC(int u, int level);
@@ -219,8 +222,11 @@ QuasiClique_BB::QuasiClique_BB(){
     matrix=NULL;
     PC=PC_rid=NULL;
     neiInG=neiInP=NULL;
+    colUseMtx=NULL, colorSz=NULL, colorVec=NULL;
     P_end=C_end=0;
     QC.clear();
+    nonNeiB.clear(), weiB.clear();
+    weiPreSum.clear();
     LB=0; UB=0;
     
 }
@@ -253,6 +259,27 @@ QuasiClique_BB::~QuasiClique_BB(){
     if(!QC.empty()){
         QC.clear();
     }
+    if(!nonNeiB.empty()){
+        nonNeiB.clear();
+    }
+    if(!weiB.empty()){
+        weiB.clear();
+    }
+    if(!weiPreSum.empty()){
+        weiPreSum.clear();
+    }
+    if(colorSz!=NULL){
+        delete[] colorSz;
+        colorSz=NULL;
+    }
+    if(colUseMtx!=NULL){
+        delete[] colUseMtx;
+        colUseMtx=NULL;
+    }
+    if(colorVec!=NULL){
+        delete[] colorVec;
+        colorVec=NULL;
+    }
 }
 
 void QuasiClique_BB::load_graph(int _n,int *_pstart, int *_pend, int *_edges){
@@ -265,8 +292,11 @@ void QuasiClique_BB::load_graph(int _n,int *_pstart, int *_pend, int *_edges){
     pstart=new int[n+1]; edges=new int[m];
     neiInP=new int[n];neiInG=new int[n];
     PC=new int[n]; PC_rid=new int[n];
+    colUseMtx=new long long[n*n]; colorSz=new int[n]; 
+    colorVec=new int[n];
     m=0;
     memset(neiInP,0,n*sizeof(int));
+    memset(colUseMtx, 0, n*n*sizeof(long long));
     for (int i = 0; i < n; i++){
         PC[i]=PC_rid[i]=i;
         pstart[i]=m;
@@ -285,6 +315,7 @@ void QuasiClique_BB::load_subgraph(double _gamma, int _n, vector<pair<int,int>> 
     UB=_UB;
     minDeg=n;
     C_end=n;
+    treeIdx=0;
     m=_vp.size();
     //initialize the current best solution
     // QC.resize(_QC.size());
@@ -298,9 +329,11 @@ void QuasiClique_BB::load_subgraph(double _gamma, int _n, vector<pair<int,int>> 
     edges=new int[2*m];
     neiInP= new int[n];
     neiInG= new int[n];
+    colUseMtx=new long long[n*n]; colorSz=new int[n]; 
+    colorVec=new int[n];
     memset(matrix, false, (n*n)*sizeof(bool));
     memset(neiInP, 0, n*sizeof(int));
-
+    memset(colUseMtx, 0, n*n*sizeof(long long));
     for(auto pr:_vp){
         int u=pr.first, v=pr.second; isAdj(u,v)=isAdj(v,u)=true;
     }
@@ -366,6 +399,37 @@ bool QuasiClique_BB::verifyQC(){
     printf("QC vNum: %d, QC eNum: %d, QC density: %.2f\n",n_qc, m_qc, density);
     return false;
 }
+bool QuasiClique_BB::verify2hop(int _end){
+    bool flag=true, curflag=false;
+    int u_0=PC[0];
+    vector<int> nonNei_u0;
+    for (int i = 1; i < _end; i++){
+        int v=PC[i];
+        if(!isAdj(u_0, PC[i])) nonNei_u0.push_back(v);
+    }
+    for (int i = 0; i < _end; i++){
+        int u=PC[i];
+        for (int j = 0; j < nonNei_u0.size(); j++){
+            int v=nonNei_u0[j];
+            if(u==v || isAdj(u,v)) continue;
+            curflag=false;
+            for (int k = 0; k < _end; k++){
+                int w=PC[k];
+                if(w==u || w==v) continue;
+                if(isAdj(u,w) && isAdj(v,w)) {
+                    curflag=true;
+                    break;
+                }
+            }
+            if(!curflag) {
+                nonNei_u0.clear();
+                return false;
+            }
+        }   
+    }
+    nonNei_u0.clear();
+    return flag;
+}
 void QuasiClique_BB::MQCSearch2hop(vector<int> &_QC){
     Timer t;
     int u=PC[0];
@@ -381,29 +445,93 @@ void QuasiClique_BB::MQCSearch2hop(vector<int> &_QC){
     printf("subgraph search complete, search time: %.2f, treeCnt: %d\n",double(t.elapsed())/1000000, treeCnt);
 
 }
-
+int QuasiClique_BB::sortBound(){
+    int UB=0; int maxWei=0;
+    nonNeiB.resize(P_end+1);
+    weiB.resize(C_end);
+    weiPreSum.resize(C_end-P_end);
+    int colNum=0, maxCol=0; 
+    colorSz[0]=0;
+    //1. use bucket sorting to sort
+    for (int i = P_end; i < C_end; i++){
+        int u= PC[i];
+		// if(P_end-neiInP[i]>k) continue;
+		nonNeiB[int(P_end-neiInP[u])].push_back(u);
+    }
+    //2. coloring the vertices in C
+    for (int i = 0; i <= P_end; i++){
+        for (auto u:nonNeiB[i]){
+            int col=0;
+            while(colUseMtx[u*n+col]==treeIdx) col++;
+			if(col>maxCol){
+				maxCol=max(maxCol,col);
+				colorSz[maxCol]=0;
+			}
+            for (int j = pstart[u]; j < pstart[u+1]; j++){
+                int nei=edges[j];
+                // if(!isAdj(u,nei)) continue;
+                colUseMtx[nei*n+col]=treeIdx;
+            }
+            colorSz[col]++;
+            int wei=i+colorSz[col]-1;
+            weiB[wei]++;
+            maxWei=max(maxWei, wei);
+        }
+        
+    }
+    //3. calculation of the prefix sum of the weight bucket 
+    int vIdx=0;
+    for (int w = 0; w <=  maxWei; w++){
+        while (weiB[w]!=0){
+            if(vIdx==0) weiPreSum[vIdx]=w;
+            else{
+                weiPreSum[vIdx]+=weiPreSum[vIdx-1]+w;
+            }
+            vIdx++;
+            weiB[w]--;
+        }
+        // if(weiB[w]==0) continue;
+    }
+    //4. calculating the upper bound
+    for (int i = C_end-1; i >= P_end; i--){
+        if(i*(i+1)/2-MEInP- weiPreSum[i-P_end]>= gamma*i*(i+1)/2.0){
+            UB=i+1;
+            break;
+        }
+    }
+    nonNeiB.clear(); weiB.clear(); weiPreSum.clear();
+    return UB;
+}
 void QuasiClique_BB::branch(int level){
     // if(treeCnt>80) exit(0);
+    treeIdx++;
     assert(level<=n+1);
     // printf("P: %d, C: %d, treeId: %lld, level: %d\n",P_end, C_end-P_end, treeCnt,level);
     int u=PC[P_end];
     // if(verifyQC()) 
     if(C_end <= LB) goto REC;
     if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= gamma* (double)P_end*(P_end-1) ) {
-        store(P_end);
-        printf("P_end: %d, MEInP: %d\n", P_end, MEInP);
-        if(verifyQC()==false){
-            printf("tree cnt: %d\n", treeCnt);
+        if(verify2hop(P_end)){
+            store(P_end);
+            printf("P_end: %d, MEInP: %d\n", P_end, MEInP);
+            if(verifyQC()==false){
+                printf("tree cnt: %d\n", treeCnt);
+            }
+            assert(verifyQC());
         }
-        assert(verifyQC());
     }
     if (( (double)(C_end)*(C_end-1)-2*MEInG ) >= gamma*( (double)(C_end)*(C_end-1) )) {
-        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
-        store(C_end); 
-        assert(verifyQC());
+        // printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
+        if(verify2hop(C_end)){
+            store(C_end); 
+            assert(verifyQC());
+            goto REC;
+        }
+
+    }
+    if(sortBound()<=LB){
         goto REC;
     }
-
     //if G[C] is a quasi clique
     if(P_end>=C_end) goto REC; //if candidate set is empty, then return  
     // printf("enter break point\n");

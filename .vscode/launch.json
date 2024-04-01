@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/QDC-init",
-            "args": ["./data/chesapeake.bin","0.95"],
+            "args": ["./data/karate.bin","0.95"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
