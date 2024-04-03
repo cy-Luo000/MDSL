@@ -7,6 +7,8 @@
 using namespace std;
 
 long long treeCnt=0;
+long long ub_prune=0;
+long long prune1=0;
 class QuasiClique_BB;
 class QuasiClique_BB2hop;
 
@@ -200,6 +202,8 @@ public:
     bool verifyQC();
     bool verify2hop(int _end);
     void branch(int level);
+    int vertexChoose();
+    bool vertexCmp(int u, int v);
     void CtoP(int u, int level);
     void PtoC(int u, int level);
     void PtoX(int u, int level);
@@ -280,8 +284,24 @@ QuasiClique_BB::~QuasiClique_BB(){
         delete[] colorVec;
         colorVec=NULL;
     }
+    if(matrix!=NULL){
+        delete[] matrix;
+        matrix=NULL;
+    }
 }
-
+bool QuasiClique_BB::vertexCmp(int u, int v){
+    if(neiInP[u]>neiInP[v]) return true;
+	if(neiInP[u]==neiInP[v] && neiInG[u]>neiInG[v]) return true;
+	return false;
+}
+int QuasiClique_BB::vertexChoose(){
+    int u=PC[P_end];
+    for(int id=P_end+1;id<C_end;id++){
+        int v=PC[id];
+        if(vertexCmp(v,u))u=v;
+    }
+    return u;
+}
 void QuasiClique_BB::load_graph(int _n,int *_pstart, int *_pend, int *_edges){
     n=_n;
     C_end=n;
@@ -508,6 +528,7 @@ void QuasiClique_BB::branch(int level){
     assert(level<=n+1);
     // printf("P: %d, C: %d, treeId: %lld, level: %d\n",P_end, C_end-P_end, treeCnt,level);
     int u=PC[P_end];
+    // u=vertexChoose();
     // if(verifyQC()) 
     if(C_end <= LB) goto REC;
     if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= gamma* (double)P_end*(P_end-1) ) {
@@ -521,6 +542,7 @@ void QuasiClique_BB::branch(int level){
         }
     }
     if (( (double)(C_end)*(C_end-1)-2*MEInG ) >= gamma*( (double)(C_end)*(C_end-1) )) {
+        prune1++;
         // printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
         if(verify2hop(C_end)){
             store(C_end); 
@@ -530,11 +552,13 @@ void QuasiClique_BB::branch(int level){
 
     }
     if(sortBound()<=LB){
+        ub_prune++;
         goto REC;
     }
     //if G[C] is a quasi clique
     if(P_end>=C_end) goto REC; //if candidate set is empty, then return  
     // printf("enter break point\n");
+    // u=vertexChoose();
     treeCnt++;
     CtoP(u,level);
     branch(level+1);// branch on adding the vertex u

@@ -338,6 +338,7 @@ void Graph::search() {
 					// ExactSearcher exact_solver(K, ids_n, vp, KDC, UB); exact_solver.search();
 					if(KDC.size() != pre_size) for(int j = 0;j < KDC.size();j ++) KDC[j] = ids[KDC[j]];
 					printf("current QC size: %d\n", KDC.size());
+					delete MQCSolver;
 					// exit(0);
 				}
 				Qv[0] = u; Qv_n = 1;
@@ -370,7 +371,7 @@ void Graph::search() {
 		printf("avg subgraph dense: %lf\n", avgSubDense);
 		printf("Max Mutual Exclusive: %d, Mutual exclusive sum: %lld, Mutual exclusive avg: %lf, Mutual exclusive dense avg: %lf\n",MaxMuExNum, MuExSum, (double)MuExSum/(tree_cnt+0.1), denSum/(denNum+0.001));
 		printf("Sum of Mutual Exclusive in color set: %lld, max mutual exclusive in color set: %d\n", colMuExSum, maxColMuNum);
-		printf("Search Tree Size: %lld, the sum of induced graphs: %lld, the num of sub graphs: %d, avg size: %.2f\n",treeCnt, szSum, subNum, double(szSum)/subNum);
+		printf("Search Tree Size: %lld, prune1: %lld, ub_prune: %lld\n",treeCnt, prune1, ub_prune);
 #endif
 		
 		
