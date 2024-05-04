@@ -527,7 +527,7 @@ void QuasiClique_BB::branch(int level){
     treeIdx++;
     assert(level<=n+1);
     // printf("P: %d, C: %d, treeId: %lld, level: %d\n",P_end, C_end-P_end, treeCnt,level);
-    int u=PC[P_end];
+    int u=n;bool must_include=false;
     // u=vertexChoose();
     // if(verifyQC()) 
     if(C_end <= LB) goto REC;
@@ -560,8 +560,26 @@ void QuasiClique_BB::branch(int level){
     // printf("enter break point\n");
     // u=vertexChoose();
     treeCnt++;
+    
+    for (int i = P_end; i < C_end; i++){
+        int v=PC[i];
+        if(neiInG[v]>=C_end-2){
+            double edge_sum=(double)P_end*(P_end-1)-2*MEInP+2*neiInP[v];
+            if(edge_sum >= gamma * (double)P_end*(P_end+1)){
+                must_include=true;
+                u=v;
+                break;
+            }
+        }
+    }
+    if(u==n)u=PC[P_end];
+    u=PC[P_end];
     CtoP(u,level);
     branch(level+1);// branch on adding the vertex u
+    if(must_include&&false){
+        PtoC(u,level);
+        goto REC;
+    }
     PtoX(u,level);
     branch(level+1);// branch on deleting the vertex u
     XtoC(u, level);
