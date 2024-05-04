@@ -17,10 +17,11 @@ private:
 	int *pstart2hop;
 	std::vector<int> adj2hop;
 	int max2hopCore;
+	int maxCore;
 	int maxDeg;
 	long double gamma;
 	std::vector<int> KDC;
-
+	std::vector<int> subSz;
 	int *s_degree;
 	int *s_pstart;
 	int *s_pend;
@@ -41,10 +42,10 @@ public:
 	~Graph() ;
 
 	void read() ;
-	void read_graph() ;
+	// void read_graph() ;
 
 	void write() ;
-	void verify_kplex() ;
+	// void verify_kplex() ;
 
 	void search() ;
 	//test
@@ -54,8 +55,9 @@ private:
 	void extract_subgraph(int u, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, char *exists, int *pstart, int *pend, int *edges, char *deleted, int *edgelist_pointer) ;
 	void extract_graph(int n, int m, int *deg, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, char *exists, int *pstart, int *pend, int *edges, char *deleted, int *edgelist_pointer) ;
 	void induceSubgraph(int u, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, int *Q, int* degree, char *exists, int *pend, char *deleted, int *edgelist_pointer) ;
-
+	void printSubInfo();
 	int degen(int n, int *peel_sequence, int *core, int *pstart, int *edges, int *degree, char *vis, ListLinearHeap *heap, bool output) ;
+	int degen1hop(int n, int *peel_sequence, int *core, int *pstart, int *edges, int *degree, char *vis, ListLinearHeap *heap, bool output);
 	int twoHopDegConstruct(int *pstart, int *edges, int *deg2hop);//input pstart and edges output deg2hop
 	int degenBy2hopDeg(int n, int *peel_sequence, int *core2hop, int *pstart2hop, int* adj2hop, int *deg2hop, char *vis, ListLinearHeap *heap, bool output);
 	int degen2hop4Large(int n, int *seq, int *core2hop, int *pstart, int* edges, int *deg2hop, char *vis, ListLinearHeap *heap, bool output);
