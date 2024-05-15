@@ -2,75 +2,45 @@
 #define _GRAPH_H_
 #include "Timer.h"
 #include "LinearHeap.h"
-class Graph {
+
+class Graph
+{
 private:
-	std::string dir; //input graph directory
-	int n; //number of nodes of the graph
-	int m; //number of edges of the graph
-	int K; //the upper bound of missing edges
+    std::string dir;
+    ui n;
+    ept m;
+    double gamma;
 
-	int *pstart; //offset of neighbors of nodes
-	int *pend; //used in search
-	int *pend_buf;
-	int *edges; //adjacent ids of edges
-	//! add 2 hop
-	int *pstart2hop;
-	std::vector<int> adj2hop;
-	int max2hopCore;
-	int maxDeg;
-	long double gamma;
-	std::vector<int> KDC;
+    ept *pstart;
+    ui *edges;
+    ui* degree;
+    ept *pstart2Hp;
+    ui *neis2Hp;
+    ui *deg2Hp;
 
-	int *s_degree;
-	int *s_pstart;
-	int *s_pend;
-	int *s_edges;
-	int *s_peel_sequence;
-	int *s_core;
-	char *s_vis;
-	ListLinearHeap *s_heap;
+    ui maxDeg; //The max degree of G
+    ui max2HpDeg; // The max 2hop degree of G
+    ui maxCore; // The max core(degeneracy) of G
+    ui max2HpCore;  // The max 2hop core(weak degeneracy) of G
+    ui maxSub;
 
-	int *s_edgelist_pointer;
-	int *s_tri_cnt;
-	int *s_edge_list;
-	int *s_active_edgelist;
-	char *s_deleted;
-
+    std::vector<ui> MDS;
 public:
-	Graph(const char *_dir, const long double _GAMMA) ;
-	~Graph() ;
-
-	void read() ;
-	void read_graph() ;
-
-	void write() ;
-	void verify_kplex() ;
-
-	void search() ;
-	//test
-	void print_info();
-	void setK();
-private:
-	void extract_subgraph(int u, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, char *exists, int *pstart, int *pend, int *edges, char *deleted, int *edgelist_pointer) ;
-	void extract_graph(int n, int m, int *deg, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, char *exists, int *pstart, int *pend, int *edges, char *deleted, int *edgelist_pointer) ;
-	void induceSubgraph(int u, int *ids, int &ids_n, int *rid, std::vector<std::pair<int,int> > &vp, int *Q, int* degree, char *exists, int *pend, char *deleted, int *edgelist_pointer) ;
-
-	int degen(int n, int *peel_sequence, int *core, int *pstart, int *edges, int *degree, char *vis, ListLinearHeap *heap, bool output) ;
-	int twoHopDegConstruct(int *pstart, int *edges, int *deg2hop);//input pstart and edges output deg2hop
-	int degenBy2hopDeg(int n, int *peel_sequence, int *core2hop, int *pstart2hop, int* adj2hop, int *deg2hop, char *vis, ListLinearHeap *heap, bool output);
-	int degen2hop4Large(int n, int *seq, int *core2hop, int *pstart, int* edges, int *deg2hop, char *vis, ListLinearHeap *heap, bool output);
-	void shrink_graph(int &n, int &m, int *peel_sequence, int *core, int *out_mapping, int *in_mapping, int *rid, int *pstart, int *edges) ;
-	void oriented_triangle_counting(int n, int m, int *peel_sequence, int *pstart, int *pend, int *edges, int *tri_cnt, int *adj) ;
-	void reorganize_oriented_graph(int n, int *tri_cnt, int *edge_list, int *pstart, int *pend, int *pend2, int *edges, int *edgelist_pointer, int *buf) ;
-	int peeling(int critical_vertex, ListLinearHeap *linear_heap, int *Qv, int &Qv_n, int d_threshold, int *Qe, int t_threshold, int *tri_cnt, int *active_edgelist, int &active_edgelist_n, int *edge_list, int *edgelist_pointer, char *deleted, int *degree, int *pstart, int *pend, int *edges, char *exists) ;
-	char find(int u, int w, int &b, int e, char *deleted, int &idx, int *edgelist_pointer, int *edges) ;
-
-	// functions for subgraph processing
-	void load_graph_from_edgelist(int _n, const std::vector<std::pair<int,int> > &edge_list, int &n, int &m, int *degree, int *pstart, int *edges) ;
-	int subgraph_heuri(ui *ids, ui &_n, std::vector<std::pair<int,int> > &edge_list, ui *rid, ui *Qv, ui *Qe, char *exists);
-
-
-	
+    Graph(const char *_dir, const double _GAMMA);
+    ~Graph();
+    void read();
+    void search();
+    void degen(ui n, ui *seq, ui *core, ept *pstart, ui *edges, ui* degree, bool output);
+    void build2Hpdeg(ept* pstart, ui* edges, ui* deg2Hp, char* deleted);
+    void get2HpNei(ept* pstart, ui* edges, ui u, std::vector<int>& u_2HpNei, char* vis,char* deleted);
+    void weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *deg2Hp, bool output);
+    void induceSubgraph(ui u, ui* seq, ept* pstart, ui* edges, char* deleted, char* exists,ui* ids, ui* rid, ui& sub_n, std::vector<std::pair<ui,ui>>& vp);
+    //input the sequence, the origin graph and the deleted vertices; ouput the size of the subgraph and the edges
 };
+
+
+
+
+
 
 #endif

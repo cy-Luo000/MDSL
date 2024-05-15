@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <sstream>
 #include <iostream>
+#include<fstream>
 #include <queue>
 #include <set>
 
@@ -33,8 +34,8 @@
 #define test_bit(array, pos) ((array)[pos])
 #endif
 
-using ui = int; // vertex type
-using ept = int; // edge pointer type; unsigned int can be used to process upto two billion undirected edges
+using ui = unsigned int; // vertex type
+using ept = unsigned long; // edge pointer type; unsigned int can be used to process upto two billion undirected edges
 
 #define pb push_back
 #define mp make_pair

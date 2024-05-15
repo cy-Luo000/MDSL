@@ -1,11 +1,11 @@
 all : 
-	g++ -flto -Ofast -DNDEBUG -march=native -o QDC-init main.cpp Graph.cpp -w
+	g++ -flto -Ofast -DNDEBUG -march=native -o test main.cpp Graph.cpp -w
 debug:
-	g++ -g -O0 -march=native -o QDC-init main.cpp Graph.cpp -w
+	g++ -g -O0 -march=native -o test main.cpp Graph.cpp -w
 sub:
 	g++ -flto -Ofast -DNDEBUG -o MCC SubGraph.cppQ
 clean:
-	rm -rf QDC-init
+	rm -rf test
 test:
 	g++ -flto -Ofast -DNDEBUG -march=native -o QDC-init main.cpp Graph.cpp -w
 	./KDC-init ../socfb/socfb-Berkeley13.bin 1
