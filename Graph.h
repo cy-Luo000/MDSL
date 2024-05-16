@@ -30,10 +30,10 @@ public:
     ~Graph();
     void read();
     void search();
-    void degen(ui n, ui *seq, ui *core, ept *pstart, ui *edges, ui* degree, bool output);
+    void degen(ui n, ui *seq, ui *core, ept *pstart, ui *edges, ui* degree, char* vis,bool output);
     void build2Hpdeg(ept* pstart, ui* edges, ui* deg2Hp, char* deleted);
     void get2HpNei(ept* pstart, ui* edges, ui u, std::vector<int>& u_2HpNei, char* vis,char* deleted);
-    void weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *deg2Hp, bool output);
+    void weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *deg2Hp, char* deleted,char *vis,bool output);
     void induceSubgraph(ui u, ui* seq, ept* pstart, ui* edges, char* deleted, char* exists,ui* ids, ui* rid, ui& sub_n, std::vector<std::pair<ui,ui>>& vp);
     //input the sequence, the origin graph and the deleted vertices; ouput the size of the subgraph and the edges
 };

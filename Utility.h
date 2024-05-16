@@ -20,7 +20,7 @@
 // #define _STATISTIC_
 #define _KERNEL_
 #define _RECOLOR_
-
+#define _TEST_
 #include <cassert>
 
 #ifdef _BITSET_

@@ -20,7 +20,12 @@ Graph::Graph(const char *_dir, const double _GAMMA){
 void Graph::read(){
     FILE *f=fopen(dir.c_str(), "rb");
     fread(&n, sizeof(int), 1, f); fread(&n, sizeof(int), 1, f); fread(&m, sizeof(int), 1,f);
-    printf("\t(orgin): n = %u; m = %llu (undirected)\n",n , m/2);
+    // printf("\t(orgin): n = %u; m = %llu (undirected)\n",n , m/2);
+#ifdef _TEST_
+	printf("#n=%u\n#m=%llu\n", n, m/2);
+#else 
+	printf("\t(orgin): n = %u; m = %llu (undirected)\n",n , m/2);
+#endif
     degree=new ui[n];
     // printf("read the degree begin\n");
     fread(degree, sizeof(int), n,f);
@@ -57,29 +62,18 @@ void Graph::search(){
     bool turingRed=true;
     ui *core=new ui[n];
     ui *seq = new ui[n];
-    char* deleted = new char[n]; memset(deleted, 0, n*sizeof(char));
+    char* deleted = new char[n]; memset(deleted, 0, n*sizeof(char));// the array to record the deleted vertices
+    char* vis = new char[n]; memset(vis, 0, n*sizeof(char));// the array to record the visited vertices
     for (ui u = 0; u < n; u++) seq[u]=u; 
-    degen(n, seq, core, pstart, edges, degree, true);
+    degen(n, seq, core, pstart, edges, degree, vis,true);
     HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges,gamma, maxDeg, MDS);
     heuri_solver->degenSearch(MDS, seq);
     if(weakDegen){
         deg2Hp = new ui[n];
         ui* core2Hp = new ui[n];
         
-        build2Hpdeg(pstart, edges, deg2Hp, deleted);
-        weakdegen(n, seq, core2Hp, pstart, edges, deg2Hp, true);
-        // bool flag=true;
-        // ui* seq2 = new ui[n];
-        // for (ui i = 0; i < n; i++) seq2[i]=seq[i];
-        // sort(seq2, seq2+n);
-        // for (ui i = 0; i < n; i++){
-        //     if(seq2[i]!=i){
-        //         flag=false;
-        //         printf("error!\n");
-        //         exit(0);
-        //         break;
-        //     }
-        // }
+        build2Hpdeg(pstart, edges, deg2Hp, vis);
+        weakdegen(n, seq, core2Hp, pstart, edges, deg2Hp, deleted, vis,true);
         // reorder the seq with weak degeneracy
         delete[] deg2Hp;
         delete[] core2Hp;
@@ -92,28 +86,27 @@ void Graph::search(){
             ui* ids = new ui[n]; ui sub_n=0;
             ui* rid = new ui[n];
             vector<pair<ui, ui>> vp;
-            
-            char* exists = new char[n]; memset(exists, 0, n*sizeof(char));
+            // char* exists = new char[n]; memset(exists, 0, n*sizeof(char));
             for (ui i = 0; i < n; i++){
                 ui u = seq[i];
                 ui pre_size = ui(MDS.size());
-                induceSubgraph(u, seq, pstart, edges, deleted, exists, ids, rid, sub_n, vp);
+                induceSubgraph(u, seq, pstart, edges, deleted, vis, ids, rid, sub_n, vp);
                 maxSub = max(maxSub, sub_n);
-                // printf("vtx: %u, edg: %llu\n", sub_n, ept(vp.size()));
-                // exit(0);
-                // if(i == 5) exit(0);
-
                 deleted[u] = 1;
             }
+            // printf("max size of subgraph: %u\n", maxSub);
+#ifdef _TEST_
+            printf("#MaxSG=%d\n",maxSub);
+#else
             printf("max size of subgraph: %u\n", maxSub);
-
+#endif
             delete[] ids;
             delete[] rid;
             
-            delete[] exists;
+            // delete[] exists;
         }
         delete[] deleted;
-
+        delete[] vis;
         
     }
 }
@@ -151,11 +144,11 @@ void Graph::induceSubgraph(ui u, ui* seq, ept* pstart, ui* edges, char* deleted,
     }
     for (int i = 0; i < sub_n; i++) exists[ids[i]] = 0;
 }
-void Graph::degen(ui n, ui *seq, ui *core, ept *pstart, ui *edges, ui* degree, bool output){
+void Graph::degen(ui n, ui *seq, ui *core, ept *pstart, ui *edges, ui* degree, char* vis,bool output){
     Timer t;
     if(n > 0){
-        char* vis=new char[n];
-        memset(vis, 0, n*sizeof(char));
+        // char* vis=new char[n];
+        // memset(vis, 0, n*sizeof(char));
         ListLinearHeap *heap=new ListLinearHeap(n, n-1);
         heap->init(n, n-1, seq, degree);
         for (ui i = 0; i < n; i++){
@@ -170,7 +163,14 @@ void Graph::degen(ui n, ui *seq, ui *core, ept *pstart, ui *edges, ui* degree, b
             }
         }
     }
-    if(output) printf("*** MaxCore: %d, degen Time: %.2f ***\n",  maxCore, double(t.elapsed())/1000000);
+    // if(output) printf("*** MaxCore: %d, degen Time: %.2f ***\n",  maxCore, double(t.elapsed())/1000000);
+    memset(vis, 0, n*sizeof(char));// recover the visited array
+    #ifdef _TEST_
+		if(output) printf("#MaxCore=%d\n#DegenTime=%.2f\n", maxCore, double(t.elapsed())/1000000);
+		printf("#MaxDeg=%d\n",maxDeg);
+    #else
+        if(output) printf("*** MaxCore: %d, degen Time: %.2f ***\n",  maxCore, double(t.elapsed())/1000000);
+    #endif
     return;
 }
 void Graph::get2HpNei(ept* pstart, ui* edges, ui u, std::vector<int>& u_2HpNei, char* vis, char* deleted){
@@ -190,22 +190,11 @@ void Graph::get2HpNei(ept* pstart, ui* edges, ui u, std::vector<int>& u_2HpNei, 
         }
     }
 }
-void Graph::build2Hpdeg(ept* pstart, ui* edges, ui* deg2Hp, char* deleted){
+void Graph::build2Hpdeg(ept* pstart, ui* edges, ui* deg2Hp, char* vis){
     Timer t;
-    char* vis=new char[n];
-    memset(vis, 0, n*sizeof(char));
     std::vector<int> nei2Hp;
-    for (int i = 0; i < n; i++){
-        assert(!vis[i]);
-        assert(!deleted[i]);
-    }
-    
+    ui min2HpDeg=n+1;
     for (ui u = 0; u < n; u++){
-        // get2HpNei(pstart, edges, u, nei2Hp, vis, deleted);
-    //     for (int i = 0; i < n; i++){
-    //     assert(!vis[i]);
-    //     // assert(!deleted[i]);
-    // }
         vis[u]=1;
         for (ept j = pstart[u]; j < pstart[u+1]; j++){
             ui v = edges[j];
@@ -225,17 +214,23 @@ void Graph::build2Hpdeg(ept* pstart, ui* edges, ui* deg2Hp, char* deleted){
 
         deg2Hp[u] = ui(nei2Hp.size());
         max2HpDeg=max(max2HpDeg, deg2Hp[u]);
+        min2HpDeg=min(min2HpDeg, deg2Hp[u]);
         //recover the vis array
         for(auto v: nei2Hp) vis[v]=0;
         vis[u]=0;
         nei2Hp.clear();
     }
-    printf("The max 2hop is: %d, the time of 2hop construction is: %.2f\n", max2HpDeg,  double(t.elapsed())/1000000);
+    // printf("The max 2hop is: %d, the time of 2hop construction is: %.2f\n", max2HpDeg,  double(t.elapsed())/1000000);
+#ifdef _TEST_
+	printf("#max2hop=%d\n#min2hop=%d\n#2hopbuildtime=%.2f\n", max2HpDeg, min2HpDeg,double(t.elapsed())/1000000);
+#elif
+	printf("The max 2hop is: %d, the min 2hop is: %d, the time of 2hop construction is: %.2f\n", max2hop, min2hop, double(t.elapsed())/1000000);
+#endif
 }
-void Graph:: weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *deg2Hp, bool output){
+void Graph:: weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *deg2Hp, char* deleted, char* vis,bool output){
     Timer t;
-    char* deleted=new char[n]; memset(deleted, 0, n*sizeof(char));
-    char* vis = new char[n]; memset(vis, 0, n*sizeof(char));
+    // char* deleted=new char[n]; memset(deleted, 0, n*sizeof(char));
+    // char* vis = new char[n]; memset(vis, 0, n*sizeof(char));
     // char* 
     std::vector<ui> nei2Hp;//2 hop neighbors
     std::vector<ui> neis;//neighbors(1 hop neighbors)
@@ -307,7 +302,13 @@ void Graph:: weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *d
         
     }
     ui UB=max2HpCore+1;
-    if(output) printf("MaxCore2hop: %d, UB: %d, Order Time: %.2f\n", max2HpCore, UB, double(t.elapsed())/1000000);
+    memset(deleted, 0, n*sizeof(char));//recover the deleted array
+    // if(output) printf("MaxCore2hop: %d, UB: %d, Order Time: %.2f\n", max2HpCore, UB, double(t.elapsed())/1000000);
+#ifdef _TEST_
+	if(output) printf("#MaxCore2hop=%d\n#UB=%d\n#Order2hopTime=%.2f\n", max2HpCore, UB, double(t.elapsed())/1000000);
+#elif
+	if(output) printf("MaxCore2hop: %d, UB: %d, Order Time: %.2f\n", max2HpCore, UB, double(t.elapsed())/1000000);
+#endif
 }
 Graph::~Graph()
 {
