@@ -68,6 +68,18 @@ void Graph::search(){
         
         build2Hpdeg(pstart, edges, deg2Hp, deleted);
         weakdegen(n, seq, core2Hp, pstart, edges, deg2Hp, true);
+        // bool flag=true;
+        // ui* seq2 = new ui[n];
+        // for (ui i = 0; i < n; i++) seq2[i]=seq[i];
+        // sort(seq2, seq2+n);
+        // for (ui i = 0; i < n; i++){
+        //     if(seq2[i]!=i){
+        //         flag=false;
+        //         printf("error!\n");
+        //         exit(0);
+        //         break;
+        //     }
+        // }
         // reorder the seq with weak degeneracy
         delete[] deg2Hp;
         delete[] core2Hp;
@@ -183,8 +195,34 @@ void Graph::build2Hpdeg(ept* pstart, ui* edges, ui* deg2Hp, char* deleted){
     char* vis=new char[n];
     memset(vis, 0, n*sizeof(char));
     std::vector<int> nei2Hp;
+    for (int i = 0; i < n; i++){
+        assert(!vis[i]);
+        assert(!deleted[i]);
+    }
+    
     for (ui u = 0; u < n; u++){
-        get2HpNei(pstart, edges, u, nei2Hp, vis, deleted);
+        // get2HpNei(pstart, edges, u, nei2Hp, vis, deleted);
+    //     for (int i = 0; i < n; i++){
+    //     assert(!vis[i]);
+    //     // assert(!deleted[i]);
+    // }
+        vis[u]=1;
+        for (ept j = pstart[u]; j < pstart[u+1]; j++){
+            ui v = edges[j];
+            // if(vis[v]) continue;
+            nei2Hp.push_back(v), vis[v]=1;
+        }
+        ui deg_u=nei2Hp.size();
+        for (int i = 0; i < deg_u; i++){
+            ui v = nei2Hp[i];
+            // find the neighbors of v
+            for (ept k = pstart[v]; k < pstart[v+1]; k++){
+                ui w = edges[k];
+                if(vis[w]) continue;
+                nei2Hp.push_back(w), vis[w]=1;
+            }
+        }
+
         deg2Hp[u] = ui(nei2Hp.size());
         max2HpDeg=max(max2HpDeg, deg2Hp[u]);
         //recover the vis array
@@ -198,7 +236,10 @@ void Graph:: weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *d
     Timer t;
     char* deleted=new char[n]; memset(deleted, 0, n*sizeof(char));
     char* vis = new char[n]; memset(vis, 0, n*sizeof(char));
-    std::vector<int> nei2Hp;
+    // char* 
+    std::vector<ui> nei2Hp;//2 hop neighbors
+    std::vector<ui> neis;//neighbors(1 hop neighbors)
+    std::vector<ui> nei2Hp_v;// the 2hop neighbors of v(v is the neighbor of u)
     ListLinearHeap *heap=new ListLinearHeap(n, n-1);
     for (ui i = 0; i < n; i++) seq[i]=i;
     heap->init(n, n-1, seq, deg2Hp);
@@ -208,13 +249,61 @@ void Graph:: weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *d
         core2Hp[u]= max2HpCore;
         seq[i] = u; deleted[u]=1;
         //renew the deg2Hp of the each 2hop neighbors of u
-        get2HpNei(pstart, edges, u, nei2Hp, vis, deleted);
-        for(auto v: nei2Hp){
-           if(!deleted[v]) heap->decrement(v, 1);
-           vis[v]=0;
+        // get2HpNei(pstart, edges, u, nei2Hp, vis, deleted);
+        assert(neis.empty());
+        assert(nei2Hp.empty());
+        assert(nei2Hp_v.empty());
+        vis[u]=1;
+        for (ept j = pstart[u]; j < pstart[u+1]; j++){
+            ui v = edges[j];
+            if(!deleted[v]) neis.push_back(v), vis[v]=1;
+        }
+        // ui deg_u=(ui)nei2Hp.size();
+        for (ui j = 0; j < neis.size(); j++){
+            ui v = neis[j];
+            // find the neighbors of v
+            for (ept k = pstart[v]; k < pstart[v+1]; k++){
+                ui w = edges[k];
+                if(vis[w] || deleted[w]) continue;
+                nei2Hp.push_back(w), vis[w]=1;
+            }
         }
         vis[u]=0;
+        for(auto v:nei2Hp) vis[v]=0;
+        for(auto v:neis) vis[v]=0;
+        for(auto v: nei2Hp){
+           if(!deleted[v]) heap->decrement(v, 1);
+        //    vis[v]=0;
+        }
+        // calculate the 2hop neighbors of the neighbor of u from the beginning
+        for(auto v:neis){
+            vis[v] =1;
+            for (ept j = pstart[v]; j < pstart[v+1]; j++){
+                ui w = edges[j];
+                if(!deleted[w]){
+                    nei2Hp_v.push_back(w), vis[w]=1;
+                }
+            }
+            ui deg_v = (ui)nei2Hp_v.size();
+            for (ui j = 0; j < deg_v; j++){
+                ui w = nei2Hp_v[j];
+                for (ept k = pstart[w]; k < pstart[w+1]; k++){
+                    ui x = edges[k];
+                    if(!deleted[x] && !vis[x]){
+                        nei2Hp_v.push_back(x), vis[x]=1;
+                    }
+                }
+            }
+            ui curDeg2Hp=heap->get_key(v);
+            ui dec = curDeg2Hp - (ui)nei2Hp_v.size();
+            heap->decrement(v, dec);
+            for(auto w: nei2Hp_v) vis[w]=0;
+            vis[v]=0;
+            nei2Hp_v.clear();
+        }
+        
         nei2Hp.clear();
+        neis.clear();
         
     }
     ui UB=max2HpCore+1;
