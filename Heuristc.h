@@ -164,7 +164,7 @@ public:
 	void search(std::vector<ui> &_QC){
         Timer t;
         ui max_n=1+maxDeg;
-        // ListLinearHeap* s_heap=new ListLinearHeap(max_n, max_n-1);
+        ListLinearHeap* s_heap=new ListLinearHeap(max_n, max_n-1);
         for (ui u = 0; u < n; u++){
             //1. build the subgraph
             // printf("heuristic search subgraph: %d\n",u);
@@ -186,7 +186,7 @@ public:
         Timer t;
         ui max_n=1+maxDeg;
         ui subMax=0, subSz=0;
-        // ListLinearHeap* s_heap=new ListLinearHeap(max_n, max_n-1);
+        ListLinearHeap* s_heap=new ListLinearHeap(max_n, max_n-1);
         for (ui i = 0; i < n; i++){
             //1. build the subgraph
             // printf("heuristic search subgraph: %d\n",u);
@@ -194,7 +194,7 @@ public:
             subSz=induceNeiBack(u);
             subMax=max(subMax, subSz);
             ui u_deg=adjList[rid_s[u]].size();
-            // this->UB=degenHeu(u, u_deg, s_heap);
+            this->UB=degenHeu(u, u_deg, s_heap);
             this->clear();
             delete_s[u]=true;
         }

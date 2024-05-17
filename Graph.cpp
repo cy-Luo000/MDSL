@@ -1,5 +1,6 @@
 #include "Graph.h"
 #include "Heuristc.h"
+#include "QuasiClique_BB.h"
 using namespace std;
 
 Graph::Graph(const char *_dir, const double _GAMMA){
@@ -45,9 +46,10 @@ void Graph::read(){
                 if(edge_u[vLoc] == u || (vLoc>0 && edge_u[vLoc]==edge_u[vLoc-1])) continue;//delete the self-loops and the loops
                 edge_u[idx++]=edge_u[vLoc];
             }
-            degree[u]=idx;
+            degree[u]=idx; maxDeg=max(maxDeg, degree[u]);
+
         }
-        pstart[u+1]=pstart[u]+degree[u];
+        pstart[u+1]=pstart[u]+degree[u]; 
     }
     m=pstart[n];
     printf("\t(processed): n = %u; m = %llu (undirected)\n",n , m/2);
@@ -55,11 +57,13 @@ void Graph::read(){
 
 }
 void Graph::search(){
+    Timer t;
     if(n<=0){
         printf("Max Dense Subgraph is %u\n",0);
     }
     bool weakDegen=true;
     bool turingRed=true;
+    ui UB = n;
     ui *core=new ui[n];
     ui *seq = new ui[n];
     char* deleted = new char[n]; memset(deleted, 0, n*sizeof(char));// the array to record the deleted vertices
@@ -68,17 +72,20 @@ void Graph::search(){
     degen(n, seq, core, pstart, edges, degree, vis,true);
     HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges,gamma, maxDeg, MDS);
     heuri_solver->degenSearch(MDS, seq);
+    // heuri_solver->search(MDS);
+    delete heuri_solver;
     if(weakDegen){
         deg2Hp = new ui[n];
         ui* core2Hp = new ui[n];
         
         build2Hpdeg(pstart, edges, deg2Hp, vis);
-        weakdegen(n, seq, core2Hp, pstart, edges, deg2Hp, deleted, vis,true);
+        UB = weakdegen(n, seq, core2Hp, pstart, edges, deg2Hp, deleted, vis, true);
         // reorder the seq with weak degeneracy
         delete[] deg2Hp;
         delete[] core2Hp;
     }
     delete[] core;
+    Timer tt;
     if(true){
         //enter the search
         
@@ -91,6 +98,13 @@ void Graph::search(){
                 ui u = seq[i];
                 ui pre_size = ui(MDS.size());
                 induceSubgraph(u, seq, pstart, edges, deleted, vis, ids, rid, sub_n, vp);
+                //begin the search of the subgraphs
+                QuasiClique_BB *MQCSolver=new QuasiClique_BB();
+                MQCSolver->load_subgraph(gamma, sub_n, vp, MDS,UB);
+                MQCSolver->MQCSearch2hop(MDS);
+                //update the best solution
+                if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
+                delete MQCSolver;
                 maxSub = max(maxSub, sub_n);
                 deleted[u] = 1;
             }
@@ -104,7 +118,44 @@ void Graph::search(){
             delete[] rid;
             
             // delete[] exists;
+        }else{
+            QuasiClique_BB *MQCSolver=new QuasiClique_BB();
+            MQCSolver->load_graph(n,pstart,pstart+1,edges);
+#ifndef _TEST_
+				printf("graph load success!\n");
+#endif
+				// exit(0);
+				// KDC.clear(); old_size=0;
+				// if(UB<0){
+				// 	printf("error\n");
+				// }
+				MQCSolver->MQCSearch(gamma, UB, MDS);
+				// if(KDC.size()>old_size){
+				// 	for (int i = 0; i < KDC.size(); i++) KDC[i]=out_mapping[KDC[i]];
+				// }
+#ifndef _TEST_
+				printf("BBSearch complete, tree count: %lld\n", treeCnt);
+#endif
+				// exit(0);
+				delete MQCSolver;
         }
+
+
+        #ifdef _TEST_
+		printf("#MaxQCSize=%d\n#SearchTime=%.2f\n#TotalTime=%.2f\n", MDS.size(), double(tt.elapsed())/1000000, double(t.elapsed())/1000000);
+		// printf("#maxP=%d\n#minPUB=%d\n#maxME=%d\n", max_P_end, P_UBMin,maxME);
+		// printf("#NodeCount=%lld\n",treeCnt);
+		// printf("#MaxSG=%d\n",maxSubSz);
+		// printf("#FeasibleSubgraph=%d\n",feasible);
+		// printf("#prune1=%lld\n#ubprune=%lld\n", prune1,ub_prune);
+		// printSubInfo();
+#else
+		printf("\tMaxKDC Size: %d, Search Time: %.2f, Total Time: %.2f\n", KDC.size(), double(tt.elapsed())/1000000, double(t.elapsed())/1000000);
+		// printf("Max Mutual Exclusive: %d, Mutual exclusive sum: %lld, Mutual exclusive avg: %lf, Mutual exclusive dense avg: %lf\n",MaxMuExNum, MuExSum, (double)MuExSum/(tree_cnt+0.1), denSum/(denNum+0.001));
+		// printf("Sum of Mutual Exclusive in color set: %lld, max mutual exclusive in color set: %d\n", colMuExSum, maxColMuNum);
+		printf("Search Tree Size: %lld\n",treeCnt);
+		printf("Feasible Subgraph: %d\n",feasible);
+#endif
         delete[] deleted;
         delete[] vis;
         
@@ -227,7 +278,7 @@ void Graph::build2Hpdeg(ept* pstart, ui* edges, ui* deg2Hp, char* vis){
 	printf("The max 2hop is: %d, the min 2hop is: %d, the time of 2hop construction is: %.2f\n", max2hop, min2hop, double(t.elapsed())/1000000);
 #endif
 }
-void Graph:: weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *deg2Hp, char* deleted, char* vis,bool output){
+ui Graph:: weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *deg2Hp, char* deleted, char* vis,bool output){
     Timer t;
     // char* deleted=new char[n]; memset(deleted, 0, n*sizeof(char));
     // char* vis = new char[n]; memset(vis, 0, n*sizeof(char));
@@ -309,6 +360,7 @@ void Graph:: weakdegen(ui n, ui* seq, ui* core2Hp, ept* pstart, ui* edges, ui *d
 #elif
 	if(output) printf("MaxCore2hop: %d, UB: %d, Order Time: %.2f\n", max2HpCore, UB, double(t.elapsed())/1000000);
 #endif
+    return UB;
 }
 Graph::~Graph()
 {
