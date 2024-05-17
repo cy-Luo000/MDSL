@@ -14,7 +14,7 @@ bool useUB=true;
 bool useHeu=true;
 ui maxSubSz=0;
 class QuasiClique_BB;
-class QuasiClique_BB2hop;
+// class QuasiClique_BB2hop;
 class QuasiClique_BB
 {
 private:
@@ -61,6 +61,7 @@ public:
     ui sortBoundL();
     bool verifyQC();
     bool verify2hop(ui _end);
+    void branchSubG(ui level);
     void branch(ui level);
     void CtoP(ui u, ui level);
     void PtoC(ui u, ui level);
@@ -186,7 +187,7 @@ void QuasiClique_BB::load_graph(ui _n,ept *_pstart, ept *_pend, ui *_edges){
         for(ept j = _pstart[i];j < _pend[i];j ++) edges[m ++] = _edges[j];
     }
     //renew the missing edges in G
-    long long meing=(long long)n*(n-1)/2-m/2;
+    long long meing=(long long)n*(n-1)/2-m/2;//the number of missing edges in G
     printf("meing:%lld\n",meing);
     MEInG=meing;
    
@@ -246,18 +247,14 @@ void QuasiClique_BB::MQCSearch(double _gamma, ui _UB, std::vector<ui> &_QC){
     gamma=_gamma;
     UB=_UB;
     LB=_QC.size();
-    subsearch=false;
+    // subsearch=false;
     //use branch and bound to search
     printf("enter MQC search 0408\n");
     ui u=PC[0];
     CtoP(u, 0);
-    // printf("enter left branch\n");
     branch(1);
-    // printf("exit left branch\n");
     PtoX(u,0);
-    // printf("enter right branch\n");
     branch(1);
-    // printf("exit right branch\n");
     XtoC(u, 0);
     if(LB>_QC.size()){
         //renew the best solution
@@ -319,11 +316,10 @@ bool QuasiClique_BB::verify2hop(ui _end){
 }
 void QuasiClique_BB::MQCSearch2hop(vector<ui> &_QC){
     Timer t;
-    ui u=PC[0];subsearch=true;
+    ui u=PC[0];
+    // subsearch=true;
     CtoP(u, 0);
-    // printf("enter branch\n");
-    branch(1);
-    //  printf("out branch\n");
+    branchSubG(1);
     PtoC(u,0);
     if(LB>_QC.size()){
         // printf("renew result\n");
@@ -479,6 +475,47 @@ ui QuasiClique_BB::sortBoundL(){
     return UB;
 }
 void QuasiClique_BB::branch(ui level){
+    assert(level<=n+1);
+    ui u=n; bool must_include=false;
+    if(C_end <= LB) goto REC;
+    if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= gamma* (double)P_end*(P_end-1) ) store(P_end);
+    if( (double(m)/C_end/(C_end-1))*2.0>= gamma){
+        //because LB>=1, we do not need to consider C_end<=1
+        if(C_end<=1) printf("Error!\n"),exit(0);
+        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
+        prune1++; store(C_end); goto REC;
+    }
+    if(sortBoundL()<=LB&&useUB){ub_prune++; goto REC;}
+    if(P_end>=C_end) goto REC; //if candidate set is empty, then return 
+    treeCnt++;
+    if (usePrune1){
+        for (ui i = P_end; i < C_end; i++){
+            ui v=PC[i];
+            if(neiInG[v]>=C_end-2){
+                double edge_sum=(double)P_end*(P_end-1)-2*MEInP+2*neiInP[v];
+                if(edge_sum >= gamma * (double)P_end*(P_end+1)){
+                    must_include=true;
+                    u=v; break;
+                }
+            }
+        }
+    }
+    if(u==n) u=PC[P_end];
+
+    CtoP(u,level);
+    branch(level+1);// branch on adding the vertex u
+    if(must_include){
+        prune1++;
+        PtoC(u,level);
+        goto REC;
+    }
+    PtoX(u,level);
+    branch(level+1);// branch on deleting the vertex u
+    XtoC(u, level);
+REC:
+    return;
+}
+void QuasiClique_BB::branchSubG(ui level){
     // if(treeCnt>80) exit(0);
     treeIdx++;
     assert(level<=n+1);
@@ -487,54 +524,22 @@ void QuasiClique_BB::branch(ui level){
     // if(verifyQC()) 
     if(C_end <= LB) goto REC;
     if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= gamma* (double)P_end*(P_end-1) ) {
-        if(subsearch){
-            if(verify2hop(P_end)){
-                store(P_end);
-                assert(verifyQC());
-            }
-        }else{
+         if(verify2hop(P_end)){
             store(P_end);
+            assert(verifyQC());
         }
     }
-    if(C_end<10000){
-         if (( (double)(C_end)*(C_end-1)-2*MEInG ) >= gamma*( (double)(C_end)*(C_end-1) )) {
-            printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
-            if(subsearch){
-                if(verify2hop(C_end)){
-                    prune1++;
-                    store(C_end); 
-                    assert(verifyQC());
-                    goto REC;
-                }
-            }else{
-                prune1++;
-                store(C_end); 
-                // assert(verifyQC());
-                goto REC;
-            }
-        }
-    }else{
-        if( (double(m)/C_end/(C_end-1))*2.0>= gamma){
-            printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
-            prune1++;
-            store(C_end); 
-            // assert(verifyQC());
+      //if G[P+C] is a quasi clique
+    if (( (double)(C_end)*(C_end-1)-2*MEInG ) >= gamma*( (double)(C_end)*(C_end-1) )) {
+        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
+        if(verify2hop(C_end)){
+            prune1++; store(C_end); 
+            assert(verifyQC());
             goto REC;
         }
     }
    
-    if(subsearch){
-        if(sortBound()<=LB&&useUB){
-            ub_prune++;
-            goto REC;
-        }
-    }else{
-        if(sortBoundL()<=LB&&useUB){
-            ub_prune++;
-            goto REC;
-        }
-    }
-    //if G[C] is a quasi clique
+    if(sortBound()<=LB&&useUB){ub_prune++;goto REC;}
     if(P_end>=C_end) goto REC; //if candidate set is empty, then return  
     // printf("enter break point\n");
     treeCnt++;
@@ -555,14 +560,14 @@ void QuasiClique_BB::branch(ui level){
     if(u==n) u=PC[P_end];
 
     CtoP(u,level);
-    branch(level+1);// branch on adding the vertex u
+    branchSubG(level+1);// branch on adding the vertex u
     if(must_include){
         prune1++;
         PtoC(u,level);
         goto REC;
     }
     PtoX(u,level);
-    branch(level+1);// branch on deleting the vertex u
+    branchSubG(level+1);// branch on deleting the vertex u
     XtoC(u, level);
 
 REC:

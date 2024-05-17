@@ -144,7 +144,7 @@ void Graph::search(){
         #ifdef _TEST_
 		printf("#MaxQCSize=%d\n#SearchTime=%.2f\n#TotalTime=%.2f\n", MDS.size(), double(tt.elapsed())/1000000, double(t.elapsed())/1000000);
 		// printf("#maxP=%d\n#minPUB=%d\n#maxME=%d\n", max_P_end, P_UBMin,maxME);
-		// printf("#NodeCount=%lld\n",treeCnt);
+		printf("#NodeCount=%lld\n",treeCnt);
 		// printf("#MaxSG=%d\n",maxSubSz);
 		// printf("#FeasibleSubgraph=%d\n",feasible);
 		// printf("#prune1=%lld\n#ubprune=%lld\n", prune1,ub_prune);
