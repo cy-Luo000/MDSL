@@ -39,14 +39,14 @@ using ept = unsigned long; // edge pointer type; unsigned int can be used to pro
 
 #define pb push_back
 #define mp make_pair
-long long treeCnt=0;
-long long ub_prune=0;
-long long prune1=0;
-bool usePrune1=false;
-bool useUB=true;
-bool useHeu=true;
-ui DSkind = 2;//1: quasi-clique; 2: k-defective clique
-ui maxSubSz=0;
+// long long treeCnt=0;
+// long long ub_prune=0;
+// long long prune1=0;
+// bool usePrune1=false;
+// bool useUB=true;
+// bool useHeu=true;
+
+// ui maxSubSz=0;
 class Utility {
 public:
 	static FILE *open_file(const char *file_name, const char *mode) {
