@@ -45,6 +45,7 @@ long long prune1=0;
 bool usePrune1=false;
 bool useUB=true;
 bool useHeu=true;
+ui DSkind = 2;//1: quasi-clique; 2: k-defective clique
 ui maxSubSz=0;
 class Utility {
 public:

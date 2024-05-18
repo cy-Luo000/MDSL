@@ -12,6 +12,7 @@ public:
 	ui* edges;
     // ui k; //total missing edges
 	double gamma;
+    ui K;
 	ui maxDeg;
     ui LB; // the lowerbound
     ui UB; // the upperbound
@@ -43,6 +44,18 @@ public:
         memset(delete_s, false, n*sizeof(bool));
         LB=ui(_QC.size());
         
+	}
+    HeuriSearcher(ui _n,ui _m, ept *_pstart, ui *_edges, ui _K, ui _maxDeg, std::vector<ui>& _KDC){
+		n=_n, m=_m, gamma=_K;
+		this->pstart=_pstart;
+		this->edges=_edges;
+		maxDeg=_maxDeg;
+		exist_s=new bool[n];
+        delete_s=new bool[n];
+        vis_s=new char[1+maxDeg];
+		memset(exist_s, false, n*sizeof(bool));
+        memset(delete_s, false, n*sizeof(bool));
+        LB=ui(_KDC.size());
 	}
  	void induceNei(ui u){
 		n_s=0; m_s=0;
@@ -121,7 +134,7 @@ public:
         for (ui i = 0; i < n_s; i++) exist_s[id_s[i]]=false;  
         return n_s;
     }
-    ui degenHeu(ui u_0, ui u_deg, ListLinearHeap *heap){
+    ui degenHeu(ui u_0, ui u_deg, ListLinearHeap *heap, ui _kind){
         ui subSz=1+u_deg, s_maxcore=0;
         ui edgeCnt_s=m_s, idx=subSz;
         // printf("u0: %d, subSz: %d\n",u_0, subSz);
@@ -129,7 +142,15 @@ public:
         heap->init(subSz, subSz-1, seq_s.data(), deg_s.data());
         //delete the vertex by degeneracy order
         for (ui i = 0; i < subSz; i++){
-            if(idx == subSz && edgeCnt_s >= ceil(gamma*(1.0*(subSz - i)*(subSz - i - 1)/2.0)) ) idx = i;
+            switch (_kind){
+                case 1:
+                    if(idx == subSz && edgeCnt_s >= ceil(gamma*(1.0*(subSz - i)*(subSz - i - 1)/2.0)) ) idx = i;
+                    break;
+                case 2:
+                    if(idx == subSz && edgeCnt_s >= (subSz - i)*(subSz - i - 1)/2 - K) idx = i;
+                    break;
+            }
+            // if(idx == subSz && edgeCnt_s >= ceil(gamma*(1.0*(subSz - i)*(subSz - i - 1)/2.0)) ) idx = i;
             ui u, key; heap->pop_min(u,key);
             if(key> s_maxcore) s_maxcore=key; 
             core_s[u]=s_maxcore; vis_s[u]=1; seq_s[i]=u;
@@ -161,7 +182,7 @@ public:
         }
         return flag;
     }
-	void search(std::vector<ui> &_QC){
+	void search(std::vector<ui> &_MDS, ui _kind){
         Timer t;
         ui max_n=1+maxDeg;
         ListLinearHeap* s_heap=new ListLinearHeap(max_n, max_n-1);
@@ -170,19 +191,19 @@ public:
             // printf("heuristic search subgraph: %d\n",u);
             induceNei(u);
             ui u_deg=adjList[rid_s[u]].size();
-            this->UB=degenHeu(u, u_deg, s_heap);
+            this->UB=degenHeu(u, u_deg, s_heap, _kind);
             this->clear();
         }
-        if(LB>ui(_QC.size())){
-            _QC.resize(LB);
+        if(LB>ui(_MDS.size())){
+            _MDS.resize(LB);
             for (ui i = 0; i < LB; i++){
-                _QC[i]=heuMDS[i];
+                _MDS[i]=heuMDS[i];
             }
             // printf("renew the result in heuristic search\n");
         }
         printf("#HeuSize=%u\n#HeuTime=%.2f\n", LB, double(t.elapsed())/1000000);
 	}
-    void degenSearch(std::vector<ui> &_QC, ui* seq){
+    void degenSearch(std::vector<ui> &_MDS, ui* seq, ui _kind){
         Timer t;
         ui max_n=1+maxDeg;
         ui subMax=0, subSz=0;
@@ -194,14 +215,14 @@ public:
             subSz=induceNeiBack(u);
             subMax=max(subMax, subSz);
             ui u_deg=adjList[rid_s[u]].size();
-            this->UB=degenHeu(u, u_deg, s_heap);
+            this->UB=degenHeu(u, u_deg, s_heap, _kind);
             this->clear();
             delete_s[u]=true;
         }
-        if(LB>ui(_QC.size())){
-            _QC.resize(LB);
+        if(LB>ui(_MDS.size())){
+            _MDS.resize(LB);
             for (ui i = 0; i < LB; i++){
-                _QC[i]=heuMDS[i];
+                _MDS[i]=heuMDS[i];
             }
             // printf("renew the result in heuristic search\n");
         }

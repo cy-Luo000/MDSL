@@ -18,6 +18,20 @@ Graph::Graph(const char *_dir, const double _GAMMA){
     MDS.clear();
 
 }
+Graph::Graph(const char *_dir, const int _K){
+    dir=string(_dir);
+    K=_K;
+    n=m=0;
+    maxDeg=maxCore=max2HpDeg=max2HpCore=0;
+    maxSub = 0;
+    pstart=nullptr;
+    edges=nullptr;
+    degree=nullptr;
+    pstart2Hp=nullptr;
+    neis2Hp=nullptr;
+    deg2Hp=nullptr;
+    MDS.clear();
+}
 void Graph::read(){
     FILE *f=fopen(dir.c_str(), "rb");
     fread(&n, sizeof(int), 1, f); fread(&n, sizeof(int), 1, f); fread(&m, sizeof(int), 1,f);
@@ -56,11 +70,10 @@ void Graph::read(){
     fclose(f);
 
 }
-void Graph::search(){
+void Graph::search(ui _DSkind){
     Timer t;
-    if(n<=0){
-        printf("Max Dense Subgraph is %u\n",0);
-    }
+    if(n<=0) printf("Max Dense Subgraph is %u\n",0);
+
     bool weakDegen=true;
     bool turingRed=true;
     ui UB = n;
@@ -70,10 +83,21 @@ void Graph::search(){
     char* vis = new char[n]; memset(vis, 0, n*sizeof(char));// the array to record the visited vertices
     for (ui u = 0; u < n; u++) seq[u]=u; 
     degen(n, seq, core, pstart, edges, degree, vis,true);
-    HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges,gamma, maxDeg, MDS);
-    heuri_solver->degenSearch(MDS, seq);
+    switch (_DSkind){
+    case 1:
+        HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges,gamma, maxDeg, MDS);
+        heuri_solver->degenSearch(MDS, seq, DSkind);
+        delete heuri_solver;
+        break;
+    case 2:
+        HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges, K, maxDeg, MDS);
+        heuri_solver->degenSearch(MDS, seq, DSkind);
+        delete heuri_solver;
+        break;
+    }
+    
     // heuri_solver->search(MDS);
-    delete heuri_solver;
+    
     if(weakDegen){
         deg2Hp = new ui[n];
         ui* core2Hp = new ui[n];
@@ -86,65 +110,57 @@ void Graph::search(){
     }
     delete[] core;
     Timer tt;
-    if(true){
+    if(UB>(ui)MDS.size()){
         //enter the search
-        
-        if(turingRed){
-            ui* ids = new ui[n]; ui sub_n=0;
-            ui* rid = new ui[n];
-            vector<pair<ui, ui>> vp;
-            // char* exists = new char[n]; memset(exists, 0, n*sizeof(char));
-            for (ui i = 0; i < n; i++){
-                ui u = seq[i];
-                ui pre_size = ui(MDS.size());
-                induceSubgraph(u, seq, pstart, edges, deleted, vis, ids, rid, sub_n, vp);
-                //begin the search of the subgraphs
-                if(sub_n>pre_size){
-                     QuasiClique_BB *MQCSolver=new QuasiClique_BB();
-                    MQCSolver->load_subgraph(gamma, sub_n, vp, MDS,UB);
-                    MQCSolver->MQCSearch2hop(MDS);
-                    //update the best solution
-                    if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
-                    delete MQCSolver;
-                    maxSub = max(maxSub, sub_n);
-                    deleted[u] = 1;
+        switch (_DSkind){
+        case 1:
+            if(turingRed){
+                ui* ids = new ui[n]; ui sub_n=0;
+                ui* rid = new ui[n];
+                vector<pair<ui, ui>> vp;
+                // char* exists = new char[n]; memset(exists, 0, n*sizeof(char));
+                for (ui i = 0; i < n; i++){
+                    ui u = seq[i];
+                    ui pre_size = ui(MDS.size());
+                    induceSubgraph(u, seq, pstart, edges, deleted, vis, ids, rid, sub_n, vp);
+                    //begin the search of the subgraphs
+                    if(sub_n>pre_size){
+                        QuasiClique_BB *MQCSolver=new QuasiClique_BB();
+                        MQCSolver->load_subgraph(gamma, sub_n, vp, MDS,UB);
+                        MQCSolver->MQCSearch2hop(MDS);
+                        //update the best solution
+                        if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
+                        delete MQCSolver;
+                        maxSub = max(maxSub, sub_n);
+                        deleted[u] = 1;
+                    }
                 }
-               
+                // printf("max size of subgraph: %u\n", maxSub);
+    #ifdef _TEST_
+                printf("#MaxSG=%d\n",maxSub);
+    #else
+                printf("max size of subgraph: %u\n", maxSub);
+    #endif
+                delete[] ids;
+                delete[] rid;
+                
+                // delete[] exists;
+            }else{
+                QuasiClique_BB *MQCSolver=new QuasiClique_BB();
+                MQCSolver->load_graph(n,pstart,pstart+1,edges);
+    #ifndef _TEST_
+                    printf("graph load success!\n");
+    #endif
+                    MQCSolver->MQCSearch(gamma, UB, MDS);
+    #ifndef _TEST_
+                    printf("BBSearch complete, tree count: %lld\n", treeCnt);
+    #endif
+                    // exit(0);
+                    delete MQCSolver;
             }
-            // printf("max size of subgraph: %u\n", maxSub);
+
+
 #ifdef _TEST_
-            printf("#MaxSG=%d\n",maxSub);
-#else
-            printf("max size of subgraph: %u\n", maxSub);
-#endif
-            delete[] ids;
-            delete[] rid;
-            
-            // delete[] exists;
-        }else{
-            QuasiClique_BB *MQCSolver=new QuasiClique_BB();
-            MQCSolver->load_graph(n,pstart,pstart+1,edges);
-#ifndef _TEST_
-				printf("graph load success!\n");
-#endif
-				// exit(0);
-				// KDC.clear(); old_size=0;
-				// if(UB<0){
-				// 	printf("error\n");
-				// }
-				MQCSolver->MQCSearch(gamma, UB, MDS);
-				// if(KDC.size()>old_size){
-				// 	for (int i = 0; i < KDC.size(); i++) KDC[i]=out_mapping[KDC[i]];
-				// }
-#ifndef _TEST_
-				printf("BBSearch complete, tree count: %lld\n", treeCnt);
-#endif
-				// exit(0);
-				delete MQCSolver;
-        }
-
-
-        #ifdef _TEST_
 		printf("#MaxQCSize=%d\n#SearchTime=%.2f\n#TotalTime=%.2f\n", MDS.size(), double(tt.elapsed())/1000000, double(t.elapsed())/1000000);
 		// printf("#maxP=%d\n#minPUB=%d\n#maxME=%d\n", max_P_end, P_UBMin,maxME);
 		printf("#NodeCount=%lld\n",treeCnt);
@@ -159,6 +175,12 @@ void Graph::search(){
 		printf("Search Tree Size: %lld\n",treeCnt);
 		printf("Feasible Subgraph: %d\n",feasible);
 #endif
+            break;
+        
+        case 2:
+            break;
+        }
+
         delete[] deleted;
         delete[] vis;
         

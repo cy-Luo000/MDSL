@@ -10,7 +10,7 @@ private:
     ui n;
     ept m;
     double gamma;
-
+    ui K;
     ept *pstart;
     ui *edges;
     ui* degree;
@@ -27,9 +27,10 @@ private:
     std::vector<ui> MDS;
 public:
     Graph(const char *_dir, const double _GAMMA);
+    Graph(const char *_dir, const int _K);
     ~Graph();
     void read();
-    void search();
+    void search(ui _DSkind=1);
     void degen(ui n, ui *seq, ui *core, ept *pstart, ui *edges, ui* degree, char* vis,bool output);
     void build2Hpdeg(ept* pstart, ui* edges, ui* deg2Hp, char* deleted);
     void get2HpNei(ept* pstart, ui* edges, ui u, std::vector<int>& u_2HpNei, char* vis,char* deleted);

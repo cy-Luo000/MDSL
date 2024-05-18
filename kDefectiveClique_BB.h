@@ -54,6 +54,7 @@ public:
     ui sortBoundL();
     bool verifyKDC();
     bool verify2hop(ui _end);
+    ui vtxSelect();
     void branchSubG(ui level);
     void branch(ui level);
     void CtoP(ui u, ui level);
@@ -260,7 +261,7 @@ bool kDefectiveClique_BB::verifyKDC(){
     //need to rephrase
     bool flag=false;
     ui m_qc=0, n_qc=this->KDC.size();
-    double density=0.0;
+    ui MeNum=0;
     if(n_qc==0){
         printf("trivial K quasi clique\n");
         return true;
@@ -270,11 +271,9 @@ bool kDefectiveClique_BB::verifyKDC(){
             if(isAdj(KDC[i], KDC[j])) m_qc++;
         }
     }
-    if(2.0*m_qc>= K*(double)(n_qc)*(n_qc-1)){
-        return true;
-    }
-    density=2.0*m_qc/((double)n_qc*(n_qc-1));
-    printf("KDC vNum: %d, KDC eNum: %d, KDC density: %.2f\n",n_qc, m_qc, density);
+    if(m_qc>= n_qc*(n_qc-1)/2-K) return true;
+    MeNum=n_qc*(n_qc-1)/2-m_qc;
+    printf("KDC vNum: %d, KDC eNum: %d, KDC MeNum: %.2f\n",n_qc, m_qc, MeNum);
     return false;
 }
 bool kDefectiveClique_BB::verify2hop(ui _end){
@@ -308,6 +307,14 @@ bool kDefectiveClique_BB::verify2hop(ui _end){
     }
     nonNei_u0.clear();
     return flag;
+}
+ui kDefectiveClique_BB::vtxSelect(){
+    ui u = PC[P_end];
+    for (ui i = P_end+1; i < C_end; i++){
+        ui v = PC[i];
+        if(neiInP[u]<neiInP[v]) u = v;
+    }
+    return u;
 }
 void kDefectiveClique_BB::MQCSearch2hop(vector<ui> &_KDC){
     Timer t;
@@ -482,15 +489,15 @@ void kDefectiveClique_BB::branch(ui level){
         for (ui i = P_end; i < C_end; i++){
             ui v=PC[i];
             if(neiInG[v]>=C_end-2){
-                double edge_sum=(double)P_end*(P_end-1)-2*MEInP+2*neiInP[v];
-                if(edge_sum >= K * (double)P_end*(P_end+1)){
+                ept edge_sum=P_end*(P_end-1)-2*MEInP+2*neiInP[v];
+                if(edge_sum >= P_end * (P_end + 1) - 2 * K){
                     must_include=true;
                     u=v; break;
                 }
             }
         }
     }
-    if(u==n) u=PC[P_end];
+    if(u==n) u=vtxSelect();
 
     CtoP(u,level);
     branch(level+1);// branch on adding the vertex u
@@ -548,7 +555,7 @@ void kDefectiveClique_BB::branchSubG(ui level){
         }
     }
     
-    if(u==n) u=PC[P_end];
+    if(u==n) u=vtxSelect();
 
     CtoP(u,level);
     branchSubG(level+1);// branch on adding the vertex u
