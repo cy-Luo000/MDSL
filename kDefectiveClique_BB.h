@@ -1,28 +1,21 @@
-#ifndef _QUASI_CLQUE_BB_
-#define _QUASI_CLQUE_BB_
+#ifndef _KDEFECTIVE_CLIQUE_BB_
+#define _KDEFECTIVE_CLIQUE_BB_
 
 #include "Utility.h"
 #include "Timer.h"
 #include "LinearHeap.h"
 using namespace std;
 
-// long long treeCnt=0;
-// long long ub_prune=0;
-// long long prune1=0;
-// bool usePrune1=false;
-// bool useUB=true;
-// bool useHeu=true;
-// ui maxSubSz=0;
-class QuasiClique_BB;
+class kDefectiveClique_BB;
 // class QuasiClique_BB2hop;
-class QuasiClique_BB
+class kDefectiveClique_BB
 {
 private:
     ui n;
     ept m;
     ui maxDeg;
     ui minDeg;
-    double gamma;
+    ui K;
     bool subsearch;
     ui UB;
     ui P_end;ui C_end;
@@ -46,20 +39,20 @@ private:
     std::vector<std::vector<ui>> nonNeiB;
     std::vector<ui> weiB;
     std::vector<ui> weiPreSum;//the prefix sum of weight bucket
-    std::vector<ui> QC;// current best solution
+    std::vector<ui> KDC;// current best solution
     
 public:
     ui LB;// current best size
-    QuasiClique_BB();
-    ~QuasiClique_BB();
+    kDefectiveClique_BB();
+    ~kDefectiveClique_BB();
     void load_graph(ui _n,ept *_pstart, ept *_pend, ui *_edges);
-    void load_subgraph(double _gamma, ui _n, vector<pair<ui,ui>> &_vp, vector<ui> &_QC, ui _UB);
+    void load_subgraph(ui _K, ui _n, vector<pair<ui,ui>> &_vp, vector<ui> &_KDC, ui _UB);
     void printInfo();
-    void MQCSearch(double _gamma, ui _UB, std::vector<ui> &_QC);
-    void MQCSearch2hop(vector<ui> &_QC);
+    void MQCSearch(ui _K, ui _UB, std::vector<ui> &_KDC);
+    void MQCSearch2hop(vector<ui> &_KDC);
     ui sortBound();
     ui sortBoundL();
-    bool verifyQC();
+    bool verifyKDC();
     bool verify2hop(ui _end);
     void branchSubG(ui level);
     void branch(ui level);
@@ -67,7 +60,7 @@ public:
     void PtoC(ui u, ui level);
     void PtoX(ui u, ui level);
     void XtoC(ui u, ui level);
-    // bool verifyQC();
+    // bool verifyKDC();
     void store(ui newLB);
     void swapID(ui i, ui j);
     bool inP(ui u);
@@ -76,8 +69,8 @@ public:
     bool &isAdj(ui u, ui v);
 };
 
-QuasiClique_BB::QuasiClique_BB(){
-    n=0; m=0; gamma=0.0;
+kDefectiveClique_BB::kDefectiveClique_BB(){
+    n=0; m=0; K=0;
     maxDeg=0, minDeg=0;
     MEInP=MEInG=0;
     pstart=NULL;
@@ -89,14 +82,14 @@ QuasiClique_BB::QuasiClique_BB(){
     colvis=NULL;
     colorLabel=NULL;
     P_end=C_end=0;
-    QC.clear();
+    KDC.clear();
     nonNeiB.clear(), weiB.clear();
     weiPreSum.clear();
     LB=0; UB=0;
     
 }
 
-QuasiClique_BB::~QuasiClique_BB(){
+kDefectiveClique_BB::~kDefectiveClique_BB(){
     if(pstart!=NULL){
         delete[] pstart;
         pstart=NULL;
@@ -121,8 +114,8 @@ QuasiClique_BB::~QuasiClique_BB(){
         delete[] neiInG;
         neiInG=NULL;
     }
-    if(!QC.empty()){
-        QC.clear();
+    if(!KDC.empty()){
+        KDC.clear();
     }
     if(!nonNeiB.empty()){
         nonNeiB.clear();
@@ -159,7 +152,7 @@ QuasiClique_BB::~QuasiClique_BB(){
     }
 }
 
-void QuasiClique_BB::load_graph(ui _n,ept *_pstart, ept *_pend, ui *_edges){
+void kDefectiveClique_BB::load_graph(ui _n,ept *_pstart, ept *_pend, ui *_edges){
     n=_n;
     C_end=n;
     //m is initially zero
@@ -195,8 +188,8 @@ void QuasiClique_BB::load_graph(ui _n,ept *_pstart, ept *_pend, ui *_edges){
     m/=2;
 }
 
-void QuasiClique_BB::load_subgraph(double _gamma, ui _n, vector<pair<ui,ui>> &_vp, vector<ui> &_QC, ui _UB){
-    gamma=_gamma;
+void kDefectiveClique_BB::load_subgraph(ui _K, ui _n, vector<pair<ui,ui>> &_vp, vector<ui> &_KDC, ui _UB){
+    K=_K;
     n=_n;
     maxSubSz=max(maxSubSz, n);
     UB=_UB;
@@ -205,10 +198,10 @@ void QuasiClique_BB::load_subgraph(double _gamma, ui _n, vector<pair<ui,ui>> &_v
     treeIdx=0;
     m=_vp.size();
     //initialize the current best solution
-    // QC.resize(_QC.size());
-    // for (ui i = 0; i < QC.size(); i++) QC[i]=_QC[i];
-    // QC=_QC;
-    LB=_QC.size();
+    // KDC.resize(_KDC.size());
+    // for (ui i = 0; i < KDC.size(); i++) KDC[i]=_KDC[i];
+    // KDC=_KDC;
+    LB=_KDC.size();
     matrix=new bool[n*n];
     PC=new ui[n];
     PC_rid=new ui[n];
@@ -239,14 +232,14 @@ void QuasiClique_BB::load_subgraph(double _gamma, ui _n, vector<pair<ui,ui>> &_v
     m=idx/2;
     MEInG=n*(n-1)/2-m;
 }
-void QuasiClique_BB::printInfo(){
+void kDefectiveClique_BB::printInfo(){
     printf("vertex num: %d, edge num: %d\n",n,m);
     printf("max degree: %d, min degree: %d\n", maxDeg,minDeg);
 }
-void QuasiClique_BB::MQCSearch(double _gamma, ui _UB, std::vector<ui> &_QC){
-    gamma=_gamma;
+void kDefectiveClique_BB::MQCSearch(ui _K, ui _UB, std::vector<ui> &_KDC){
+    K=_K;
     UB=_UB;
-    LB=_QC.size();
+    LB=_KDC.size();
     // subsearch=false;
     //use branch and bound to search
     printf("enter MQC search 0408\n");
@@ -256,34 +249,36 @@ void QuasiClique_BB::MQCSearch(double _gamma, ui _UB, std::vector<ui> &_QC){
     PtoX(u,0);
     branch(1);
     XtoC(u, 0);
-    if(LB>_QC.size()){
+    if(LB>_KDC.size()){
         //renew the best solution
-        _QC.clear();
-        for (ui i = 0; i < LB; i++) _QC.push_back(QC[i]);
+        _KDC.clear();
+        for (ui i = 0; i < LB; i++) _KDC.push_back(KDC[i]);
     }
 }
 
-bool QuasiClique_BB::verifyQC(){
+bool kDefectiveClique_BB::verifyKDC(){
+    //need to rephrase
     bool flag=false;
-    ui m_qc=0, n_qc=this->QC.size();
+    ui m_qc=0, n_qc=this->KDC.size();
     double density=0.0;
     if(n_qc==0){
-        printf("trivial gamma quasi clique\n");
+        printf("trivial K quasi clique\n");
         return true;
     }
-    for (ui i = 0; i < QC.size(); i++){
-        for (ui j = i+1; j < QC.size(); j++){
-            if(isAdj(QC[i], QC[j])) m_qc++;
+    for (ui i = 0; i < KDC.size(); i++){
+        for (ui j = i+1; j < KDC.size(); j++){
+            if(isAdj(KDC[i], KDC[j])) m_qc++;
         }
     }
-    if(2.0*m_qc>= gamma*(double)(n_qc)*(n_qc-1)){
+    if(2.0*m_qc>= K*(double)(n_qc)*(n_qc-1)){
         return true;
     }
     density=2.0*m_qc/((double)n_qc*(n_qc-1));
-    printf("QC vNum: %d, QC eNum: %d, QC density: %.2f\n",n_qc, m_qc, density);
+    printf("KDC vNum: %d, KDC eNum: %d, KDC density: %.2f\n",n_qc, m_qc, density);
     return false;
 }
-bool QuasiClique_BB::verify2hop(ui _end){
+bool kDefectiveClique_BB::verify2hop(ui _end){
+    if(_end>K+1) return true;
     bool flag=true, curflag=false;
     ui u_0=PC[0];
     vector<ui> nonNei_u0;
@@ -314,22 +309,22 @@ bool QuasiClique_BB::verify2hop(ui _end){
     nonNei_u0.clear();
     return flag;
 }
-void QuasiClique_BB::MQCSearch2hop(vector<ui> &_QC){
+void kDefectiveClique_BB::MQCSearch2hop(vector<ui> &_KDC){
     Timer t;
     ui u=PC[0];
     // subsearch=true;
     CtoP(u, 0);
     branchSubG(1);
     PtoC(u,0);
-    if(LB>_QC.size()){
+    if(LB>_KDC.size()){
         // printf("renew result\n");
-        _QC.resize(LB);
-        for (ui i = 0; i < QC.size(); i++) _QC[i]=QC[i];
+        _KDC.resize(LB);
+        for (ui i = 0; i < KDC.size(); i++) _KDC[i]=KDC[i];
     }
     // printf("subgraph search complete, search time: %.2f, treeCnt: %lld\n",double(t.elapsed())/1000000, treeCnt);
 
 }
-ui QuasiClique_BB::sortBound(){
+ui kDefectiveClique_BB::sortBound(){
     ui UB=0; ui maxWei=0;
     nonNeiB.resize(P_end+1);
     weiB.resize(C_end);
@@ -377,16 +372,16 @@ ui QuasiClique_BB::sortBound(){
         // if(weiB[w]==0) continue;
     }
     //4. calculating the upper bound
-    for (ui i = C_end-1; i >= P_end; i--){
-        if(i*(i+1)/2-MEInP- weiPreSum[i-P_end]>= gamma*i*(i+1)/2.0){
-            UB=i+1;
+    for (ui i = P_end; i < C_end; i++){
+        if(weiPreSum[i-P_end]+MEInP>K){
+            UB=i;
             break;
         }
     }
     nonNeiB.clear(); weiB.clear(); weiPreSum.clear();
     return UB;
 }
-ui QuasiClique_BB::sortBoundL(){
+ui kDefectiveClique_BB::sortBoundL(){
     ui UB=0; ui maxWei=0;
     nonNeiB.resize(P_end+1);
     weiB.resize(C_end);
@@ -455,9 +450,9 @@ ui QuasiClique_BB::sortBoundL(){
         // if(weiB[w]==0) continue;
     }
     //4. calculating the upper bound
-    for (ui i = C_end-1; i >= P_end; i--){
-        if(i*(i+1)/2-MEInP- weiPreSum[i-P_end]>= gamma*i*(i+1)/2.0){
-            UB=i+1;
+    for (ui i = P_end; i < C_end; i++){
+        if(weiPreSum[i-P_end]+MEInP>K){
+            UB=i;
             break;
         }
     }
@@ -466,23 +461,18 @@ ui QuasiClique_BB::sortBoundL(){
         ui u=PC[i];
         colorLabel[u]=-1;
     }
-    
-    // for (ui i = 0; i < n; i++)
-    // {
-    //     colvis[i]=false;
-    // }
-    
     return UB;
 }
-void QuasiClique_BB::branch(ui level){
+void kDefectiveClique_BB::branch(ui level){
     assert(level<=n+1);
     ui u=n; bool must_include=false;
     if(C_end <= LB) goto REC;
-    if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= gamma* (double)P_end*(P_end-1) ) store(P_end);
-    if( (double(m)/C_end/(C_end-1))*2.0>= gamma){
+    if(MEInP > K) goto REC;
+    if (P_end > LB) store(P_end);
+    if( MEInG <= K){
         //because LB>=1, we do not need to consider C_end<=1
         if(C_end<=1) printf("Error!\n"),exit(0);
-        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
+        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, K);
         prune1++; store(C_end); goto REC;
     }
     if(sortBoundL()<=LB&&useUB){ub_prune++; goto REC;}
@@ -493,7 +483,7 @@ void QuasiClique_BB::branch(ui level){
             ui v=PC[i];
             if(neiInG[v]>=C_end-2){
                 double edge_sum=(double)P_end*(P_end-1)-2*MEInP+2*neiInP[v];
-                if(edge_sum >= gamma * (double)P_end*(P_end+1)){
+                if(edge_sum >= K * (double)P_end*(P_end+1)){
                     must_include=true;
                     u=v; break;
                 }
@@ -515,26 +505,27 @@ void QuasiClique_BB::branch(ui level){
 REC:
     return;
 }
-void QuasiClique_BB::branchSubG(ui level){
+void kDefectiveClique_BB::branchSubG(ui level){
     // if(treeCnt>80) exit(0);
     treeIdx++;
     assert(level<=n+1);
     // printf("P: %d, C: %d, treeId: %lld, level: %d\n",P_end, C_end-P_end, treeCnt,level);
     ui u=n; bool must_include=false;
-    // if(verifyQC()) 
+    // if(verifyKDC()) 
     if(C_end <= LB) goto REC;
-    if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= gamma* (double)P_end*(P_end-1) ) {
+    if(P_end)
+    if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= K* (double)P_end*(P_end-1) ) {
          if(verify2hop(P_end)){
             store(P_end);
-            assert(verifyQC());
+            assert(verifyKDC());
         }
     }
       //if G[P+C] is a quasi clique
-    if (( (double)(C_end)*(C_end-1)-2*MEInG ) >= gamma*( (double)(C_end)*(C_end-1) )) {
-        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
+    if (( (double)(C_end)*(C_end-1)-2*MEInG ) >= K*( (double)(C_end)*(C_end-1) )) {
+        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, K);
         if(verify2hop(C_end)){
             prune1++; store(C_end); 
-            assert(verifyQC());
+            assert(verifyKDC());
             goto REC;
         }
     }
@@ -548,7 +539,7 @@ void QuasiClique_BB::branchSubG(ui level){
             ui v=PC[i];
             if(neiInG[v]>=C_end-2){
                 double edge_sum=(double)P_end*(P_end-1)-2*MEInP+2*neiInP[v];
-                if(edge_sum >= gamma * (double)P_end*(P_end+1)){
+                if(edge_sum >= K * (double)P_end*(P_end+1)){
                     must_include=true;
                     u=v;
                     break;
@@ -574,7 +565,7 @@ REC:
     return;
 }
 
-void QuasiClique_BB::PtoC(ui u, ui level){
+void kDefectiveClique_BB::PtoC(ui u, ui level){
     assert(inP(u));
     swapID(PC_rid[u],--P_end);
     ui nonNeiP=P_end-neiInP[u];
@@ -587,7 +578,7 @@ void QuasiClique_BB::PtoC(ui u, ui level){
     
 }
 
-void QuasiClique_BB::CtoP(ui u, ui level){
+void kDefectiveClique_BB::CtoP(ui u, ui level){
     assert(inC(u));
     swapID(PC_rid[u], P_end++);
     ui nonNeiP=P_end-1-neiInP[u];
@@ -599,7 +590,7 @@ void QuasiClique_BB::CtoP(ui u, ui level){
     }
 }
 
-void QuasiClique_BB::PtoX(ui u, ui level){
+void kDefectiveClique_BB::PtoX(ui u, ui level){
     assert(inP(u));
     //move u from P to C
     swapID(PC_rid[u],--P_end);
@@ -618,7 +609,7 @@ void QuasiClique_BB::PtoX(ui u, ui level){
     }
 }
 
-void QuasiClique_BB::XtoC(ui u, ui level){
+void kDefectiveClique_BB::XtoC(ui u, ui level){
     assert(inX(u));
     //move u from X to C
     swapID(PC_rid[u],C_end++);
@@ -632,30 +623,30 @@ void QuasiClique_BB::XtoC(ui u, ui level){
     }
 }
 
-void QuasiClique_BB::store(ui newLB){
-    QC.resize(LB=newLB);
-    for (ui i = 0; i < LB; i++) QC[i]=PC[i];
+void kDefectiveClique_BB::store(ui newLB){
+    KDC.resize(LB=newLB);
+    for (ui i = 0; i < LB; i++) KDC[i]=PC[i];
 }
 
-void QuasiClique_BB::swapID(ui i,ui j){
+void kDefectiveClique_BB::swapID(ui i,ui j){
     swap(PC[i],PC[j]);
     PC_rid[PC[i]] = i;
 	PC_rid[PC[j]] = j;
 }
 
-bool QuasiClique_BB::inP(ui u){
+bool kDefectiveClique_BB::inP(ui u){
     return (PC_rid[u]>=0 && PC_rid[u]<P_end);
 }
 
-bool QuasiClique_BB::inC(ui u){
+bool kDefectiveClique_BB::inC(ui u){
     return (PC_rid[u]>=P_end && PC_rid[u]<=C_end);
 }
 
-bool QuasiClique_BB::inX(ui u){
+bool kDefectiveClique_BB::inX(ui u){
     return (PC_rid[u]>=C_end && PC_rid[u]<n);
 }
 
-bool& QuasiClique_BB::isAdj(ui u,ui v){
+bool& kDefectiveClique_BB::isAdj(ui u,ui v){
     return matrix[u*n+v];
 }
 

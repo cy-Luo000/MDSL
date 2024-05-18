@@ -99,14 +99,17 @@ void Graph::search(){
                 ui pre_size = ui(MDS.size());
                 induceSubgraph(u, seq, pstart, edges, deleted, vis, ids, rid, sub_n, vp);
                 //begin the search of the subgraphs
-                QuasiClique_BB *MQCSolver=new QuasiClique_BB();
-                MQCSolver->load_subgraph(gamma, sub_n, vp, MDS,UB);
-                MQCSolver->MQCSearch2hop(MDS);
-                //update the best solution
-                if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
-                delete MQCSolver;
-                maxSub = max(maxSub, sub_n);
-                deleted[u] = 1;
+                if(sub_n>pre_size){
+                     QuasiClique_BB *MQCSolver=new QuasiClique_BB();
+                    MQCSolver->load_subgraph(gamma, sub_n, vp, MDS,UB);
+                    MQCSolver->MQCSearch2hop(MDS);
+                    //update the best solution
+                    if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
+                    delete MQCSolver;
+                    maxSub = max(maxSub, sub_n);
+                    deleted[u] = 1;
+                }
+               
             }
             // printf("max size of subgraph: %u\n", maxSub);
 #ifdef _TEST_
