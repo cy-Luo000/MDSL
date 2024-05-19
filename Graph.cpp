@@ -76,6 +76,7 @@ void Graph::search(ui _DSkind){
 
     bool weakDegen=true;
     bool turingRed=true;
+    bool useHeu=true;
     ui UB = n;
     ui *core=new ui[n];
     ui *seq = new ui[n];
@@ -83,14 +84,16 @@ void Graph::search(ui _DSkind){
     char* vis = new char[n]; memset(vis, 0, n*sizeof(char));// the array to record the visited vertices
     for (ui u = 0; u < n; u++) seq[u]=u; 
     degen(n, seq, core, pstart, edges, degree, vis,true);
-    if(_DSkind==1){
-        HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges,gamma, maxDeg, MDS);
-        heuri_solver->degenSearch(MDS, seq, _DSkind);
-        delete heuri_solver;
-    }else{
-        HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges, K, maxDeg, MDS);
-        heuri_solver->degenSearch(MDS, seq, _DSkind);
-        delete heuri_solver;
+    if(useHeu){
+        if(_DSkind==1){
+            HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges,gamma, maxDeg, MDS);
+            heuri_solver->degenSearch(MDS, seq, _DSkind);
+            delete heuri_solver;
+        }else{
+            HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges, K, maxDeg, MDS);
+            heuri_solver->degenSearch(MDS, seq, _DSkind);
+            delete heuri_solver;
+        }
     }
     // if(_DSkind==2) exit(0);
     if(weakDegen){
@@ -117,6 +120,7 @@ void Graph::search(ui _DSkind){
                     ui u = seq[i];
                     ui pre_size = ui(MDS.size());
                     induceSubgraph(u, seq, pstart, edges, deleted, vis, ids, rid, sub_n, vp);
+                    maxSub = max(maxSub, sub_n);
                     //begin the search of the subgraphs
                     if(sub_n>pre_size){
                         QuasiClique_BB *MQCSolver=new QuasiClique_BB();
@@ -125,9 +129,10 @@ void Graph::search(ui _DSkind){
                         //update the best solution
                         if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
                         delete MQCSolver;
-                        maxSub = max(maxSub, sub_n);
-                        deleted[u] = 1;
+                        
+                        
                     }
+                    deleted[u] = 1;
                 }
                 // printf("max size of subgraph: %u\n", maxSub);
                 delete[] ids;
@@ -184,8 +189,9 @@ void Graph::search(ui _DSkind){
                         if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
                         delete MKDCSolver;
                         maxSub = max(maxSub, sub_n);
-                        deleted[u] = 1;
+                        
                     }
+                    deleted[u] = 1;
                 }
                 // printf("max size of subgraph: %u\n", maxSub);
                 delete[] ids;

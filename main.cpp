@@ -2,7 +2,7 @@
 
 int main(int argc, char* argv[]){
     puts("\n-----------------------------------------------------------------------------------------");
-    ui DSkind = 2;//1: quasi-clique; 2: k-defective clique
+    ui DSkind = 1;//1: quasi-clique; 2: k-defective clique
 
     if (DSkind==1){
         Graph *graph = new Graph(argv[1], atof(argv[2]));
