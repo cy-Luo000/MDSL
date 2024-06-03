@@ -208,6 +208,7 @@ public:
         ui max_n=1+maxDeg;
         ui subMax=0, subSz=0;
         ListLinearHeap* s_heap=new ListLinearHeap(max_n, max_n-1);
+        ui pre_size = (ui)heuMDS.size(), updt_gap = 0;
         for (ui i = 0; i < n; i++){
             //1. build the subgraph
             // printf("heuristic search subgraph: %d\n",u);
@@ -218,6 +219,9 @@ public:
             this->UB=degenHeu(u, u_deg, s_heap, _kind);
             this->clear();
             delete_s[u]=true;
+            if((ui)heuMDS.size()<=pre_size) updt_gap++;
+            else pre_size=(ui)heuMDS.size(), updt_gap=0;
+            if(updt_gap>3000) break;
         }
         if(LB>ui(_MDS.size())){
             _MDS.resize(LB);

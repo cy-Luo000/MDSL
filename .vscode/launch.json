@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/test",
-            "args": ["./data/soc-slashdot.bin","0.99"],
+            "args": ["./data/chesapeake.bin","0.99"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
