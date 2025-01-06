@@ -78,6 +78,7 @@ void Graph::search(ui _DSkind){
     bool weakDegen=true;    
     bool turingRed=true;
     bool useMIP = false;
+    bool useMIP2hop=false;
     ui UB = n;
     ui *core=new ui[n];
     ui *seq = new ui[n];
@@ -89,6 +90,7 @@ void Graph::search(ui _DSkind){
         if(_DSkind==1){
             HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges,gamma, maxDeg, MDS);
             heuri_solver->degenSearch(MDS, seq, _DSkind);
+            // heuri_solver->search(MDS, _DSkind);
             delete heuri_solver;
         }else{
             HeuriSearcher *heuri_solver=new HeuriSearcher(n,m, pstart,edges, K, maxDeg, MDS);
@@ -111,9 +113,11 @@ void Graph::search(ui _DSkind){
     }
     delete[] core;
     Timer tt;
+    ui DS_ub=0;bool getUB=false;
     if(UB>(ui)MDS.size()){
         //enter the search
         if (_DSkind==1){
+            
             if(turingRed){
                 ui* ids = new ui[n]; ui sub_n=0;
                 ui* rid = new ui[n];
@@ -133,18 +137,30 @@ void Graph::search(ui _DSkind){
     #endif
                             MQCMIP *MIPSolver=new MQCMIP();
                             MIPSolver->load_subgraph(sub_n, vp, int(MDS.size()),gamma);
-                            int maxSz=MIPSolver->MIPSolve2hop();
+                            if(getUB) {
+                                ui cur_ub = floor(MIPSolver->getUB2hop());
+                                DS_ub = max(DS_ub, cur_ub);
+                            }else{
+                                int maxSz=MIPSolver->MIPSolve2hop();
     #ifndef _TEST_
-                            printf("MIP finish computing subgraph %d\n",i);
+                                printf("MIP finish computing subgraph %d\n",i);
     #endif
-                            if(maxSz>MDS.size()) MDS.resize(maxSz);
+                                if(maxSz>MDS.size()) MDS.resize(maxSz);
+                            }
+                            
                             delete MIPSolver;
                         }else{
+                            
                             QuasiClique_BB *MQCSolver=new QuasiClique_BB();
                             MQCSolver->load_subgraph(gamma, sub_n, vp, MDS,UB);
-                            MQCSolver->MQCSearch2hop(MDS);
-                            //update the best solution
-                            if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
+                            if (getUB){//get the upper bound of BB
+                                // DS_ub=max(DS_ub, MQCSolver->sortBound());
+                                DS_ub=max(DS_ub, MQCSolver->simpleBound());
+                            }else{
+                                MQCSolver->MQCSearch2hop(MDS);
+                                //update the best solution
+                                if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
+                            }
                             delete MQCSolver;
                         }
                     }
@@ -155,32 +171,43 @@ void Graph::search(ui _DSkind){
             delete[] rid;
             
             // delete[] exists;
-        }else{
-            if(useMIP){
-#ifdef _TEST_
-				printf("enter MIP");
-#endif
-				MQCMIP *MIPSolver= new MQCMIP();
-				MIPSolver->load_graph(n, pstart, pstart+1, edges, int(MDS.size()),gamma);
-				int maxSz=MIPSolver->MIPSolve();
-				if(maxSz>MDS.size()){
-					MDS.resize(maxSz);
-				}
-				delete MIPSolver;
             }else{
-                QuasiClique_BB *MQCSolver=new QuasiClique_BB();
-                MQCSolver->load_graph(n,pstart,pstart+1,edges);
-#ifndef _TEST_
-				printf("graph load success!\n");
-#endif
-				MQCSolver->MQCSearch(gamma, UB, MDS);
-#ifndef _TEST_
-				printf("BBSearch complete, tree count: %lld\n", treeCnt);
-#endif
-				// exit(0);
-				delete MQCSolver;
+                if(useMIP){
+    #ifdef _TEST_
+                    printf("############  enter MIP  ##############\n");
+    #endif
+                    MQCMIP *MIPSolver= new MQCMIP();
+                    MIPSolver->load_graph(n, pstart, pstart+1, edges, int(MDS.size()),gamma);
+                    int maxSz=MIPSolver->MIPSolve();
+                    if(maxSz>MDS.size()){
+                        MDS.resize(maxSz);
+                    }
+                    delete MIPSolver;
+                }else if (useMIP2hop){
+    #ifdef _TEST_
+                    printf("***************** enter MIP2 **************\n");
+    #endif
+                    MQCMIP *MIPSolver= new MQCMIP();
+                    MIPSolver->load_graph(n, pstart, pstart+1, edges, int(MDS.size()),gamma);
+                    int maxSz=MIPSolver->MIPSolve2();
+                    if(maxSz>MDS.size()){
+                        MDS.resize(maxSz);
+                    }
+                    delete MIPSolver;
+                }else{
+                    QuasiClique_BB *MQCSolver=new QuasiClique_BB();
+                    MQCSolver->load_graph(n,pstart,pstart+1,edges);
+    #ifndef _TEST_
+                    printf("graph load success!\n");
+    #endif
+                    MQCSolver->MQCSearch(gamma, UB, MDS);
+    #ifndef _TEST_
+                    printf("BBSearch complete, tree count: %lld\n", treeCnt);
+    #endif
+                    // exit(0);
+                    delete MQCSolver;
+                }
             }
-        }
 
 
 #ifdef _TEST_
@@ -216,15 +243,29 @@ void Graph::search(ui _DSkind){
                         if(useMIP){
                             MKDCMIP *MIPSolver=new MKDCMIP();
                             MIPSolver->load_subgraph(sub_n, vp, ui(MDS.size()), K);
-                            int maxSz = MIPSolver->MIPSolve2hop();
-                            if(maxSz > MDS.size()) MDS.resize(maxSz);
+                            if(getUB) {
+                                ui cur_ub = floor(MIPSolver->getUB2hop());
+                                DS_ub = max(DS_ub, cur_ub);
+                            }
+                            else{
+                                int maxSz = MIPSolver->MIPSolve2hop();
+                                if(maxSz > MDS.size()) MDS.resize(maxSz);
+                            }
+                            
                             delete MIPSolver;
                         }else{
                             kDefectiveClique_BB *MKDCSolver=new kDefectiveClique_BB();
                             MKDCSolver->load_subgraph(K, sub_n, vp, MDS,UB);
-                            MKDCSolver->MKDCSearch2hop(MDS);
-                            //update the best solution
-                            if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
+                            if (getUB){
+                                // DS_ub=max(DS_ub, MKDCSolver->sortBound());
+                                DS_ub=max(DS_ub, MKDCSolver->simpleBound());
+                            }else{
+                                MKDCSolver->MKDCSearch2hop(MDS);
+                                //update the best solution
+                                if(MDS.size() > pre_size) for(ui j = 0; j < (ui)MDS.size(); j++) MDS[j] = ids[MDS[j]];
+                            }
+                            
+                            
                             delete MKDCSolver;
                             maxSub = max(maxSub, sub_n);
                         }
@@ -239,13 +280,22 @@ void Graph::search(ui _DSkind){
             }else{
                 if(useMIP){
 #ifdef _TEST_
-				    printf("enter MIP");
+				    printf("*************** enter MIP ***************\n");
 #endif  
                     MKDCMIP* MIPSolver = new MKDCMIP();
                     MIPSolver->load_graph(n, pstart, pstart+1, edges, ui(MDS.size()), K);
                     int maxSz = MIPSolver->MIPSolve();
                     if(maxSz > MDS.size()) MDS.resize(maxSz);
                     delete MIPSolver;                
+                }else if (useMIP2hop){
+#ifdef _TEST_
+				    printf("############## enter MIP2 ###############\n");
+#endif  
+                    MKDCMIP* MIPSolver = new MKDCMIP();
+                    MIPSolver->load_graph(n, pstart, pstart+1, edges, ui(MDS.size()), K);
+                    int maxSz = MIPSolver->MIPSolve2();
+                    if(maxSz > MDS.size()) MDS.resize(maxSz);
+                    delete MIPSolver;  
                 }else{
                     kDefectiveClique_BB *MKDCSolver=new kDefectiveClique_BB();
                     MKDCSolver->load_graph(n,pstart,pstart+1,edges);
@@ -284,6 +334,7 @@ void Graph::search(ui _DSkind){
     #ifdef _TEST_
         if(_DSkind==1) printf("#MaxQCSize=%u\n#SearchTime=%.2f\n#TotalTime=%.2f\n", (ui)MDS.size(), double(tt.elapsed())/1000000, double(t.elapsed())/1000000);
         else printf("#MaxKDCSize=%u\n#SearchTime=%.2f\n#TotalTime=%.2f\n", (ui)MDS.size(), double(tt.elapsed())/1000000, double(t.elapsed())/1000000);
+        printf("#DSub=%u\n", DS_ub);
 		// printf("#maxP=%d\n#minPUB=%d\n#maxME=%d\n", max_P_end, P_UBMin,maxME);
 		printf("#NodeCount=%lld\n",treeCnt);
 		// printf("#MaxSG=%d\n",maxSubSz);

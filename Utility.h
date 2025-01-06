@@ -15,6 +15,7 @@
 #include<fstream>
 #include <queue>
 #include <set>
+#include<unordered_set>
 
 #define _BITSET_ //use bit set to represent the adjacency matrix
 // #define _STATISTIC_

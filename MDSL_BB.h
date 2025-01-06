@@ -60,17 +60,21 @@ public:
     void MQCSearch(double _gamma, ui _UB, std::vector<ui> &_QC);
     void MQCSearch2hop(vector<ui> &_QC);
     ui sortBound();
+    ui simpleBound();
     ui sortBoundL();
     bool verifyQC();
     bool verify2hop(ui _end);
     void branchSubG(ui level);
     void branch(ui level);
+    void branch2(ui level);
     void CtoP(ui u, ui level);
     void PtoC(ui u, ui level);
     void PtoX(ui u, ui level);
     void XtoC(ui u, ui level);
     // bool verifyQC();
     void store(ui newLB);
+    bool is2D(ui newLB);
+    // bool is2hopAdj(ui u, ui v);
     void swapID(ui i, ui j);
     bool inP(ui u);
     bool inC(ui u);
@@ -199,6 +203,7 @@ void QuasiClique_BB::load_graph(ui _n,ept *_pstart, ept *_pend, ui *_edges){
 }
 
 void QuasiClique_BB::load_subgraph(double _gamma, ui _n, vector<pair<ui,ui>> &_vp, vector<ui> &_QC, ui _UB){
+    bool onlyUB=true;
     gamma=_gamma;
     n=_n;
     maxSubSz=max(maxSubSz, n);
@@ -223,7 +228,8 @@ void QuasiClique_BB::load_subgraph(double _gamma, ui _n, vector<pair<ui,ui>> &_v
     colorVec=new ui[n];
     memset(matrix, false, (n*n)*sizeof(bool));
     memset(neiInP, 0, n*sizeof(ui));
-    memset(colUseMtx, 0, n*n*sizeof(long long));
+    if(onlyUB) fill(colUseMtx, colUseMtx+n*n, -1);
+    else memset(colUseMtx, 0, n*n*sizeof(long long));
     for(auto pr:_vp){
         ui u=pr.first, v=pr.second; isAdj(u,v)=isAdj(v,u)=true;
     }
@@ -255,9 +261,9 @@ void QuasiClique_BB::MQCSearch(double _gamma, ui _UB, std::vector<ui> &_QC){
     printf("enter MQC search 0408\n");
     ui u=PC[0];
     CtoP(u, 0);
-    branch(1);
+    branch2(1);
     PtoX(u,0);
-    branch(1);
+    branch2(1);
     XtoC(u, 0);
     if(LB>_QC.size()){
         //renew the best solution
@@ -318,6 +324,7 @@ bool QuasiClique_BB::verify2hop(ui _end){
     return flag;
 }
 void QuasiClique_BB::MQCSearch2hop(vector<ui> &_QC){
+    // printf("enter the search\n");
     Timer t;
     ui u=PC[0];
     // subsearch=true;
@@ -332,7 +339,67 @@ void QuasiClique_BB::MQCSearch2hop(vector<ui> &_QC){
     // printf("subgraph search complete, search time: %.2f, treeCnt: %lld\n",double(t.elapsed())/1000000, treeCnt);
 
 }
+ui QuasiClique_BB::simpleBound(){
+     // printf("enter MQC sort bound\n");
+    ui UB=0; ui maxWei=0;
+    nonNeiB.resize(P_end+1);
+    weiB.resize(C_end);
+    weiPreSum.resize(C_end-P_end);
+    ui colNum=0, maxCol=0; 
+    colorSz[0]=0;
+    //1. use bucket sorting to sort
+    for (ui i = P_end; i < C_end; i++){
+        ui u= PC[i];
+		// if(P_end-neiInP[i]>k) continue;
+		nonNeiB[ui(P_end-neiInP[u])].push_back(u);
+    }
+    //2. coloring the vertices in C
+    ui col=0;
+    for (ui i = 0; i <= P_end; i++){
+        for (auto u:nonNeiB[i]){
+            // ui col=0;
+            // while(colUseMtx[u*n+col]==treeIdx) 
+			if(col>maxCol){
+				maxCol=max(maxCol,col);
+				colorSz[maxCol]=0;
+			}
+            // for (ui j = pstart[u]; j < pstart[u+1]; j++){
+            //     ui nei=edges[j];
+            //     // if(!isAdj(u,nei)) continue;
+            //     colUseMtx[nei*n+col]=treeIdx;
+            // }
+            colorSz[col]++;
+            ui wei=i+colorSz[col]-1;
+            weiB[wei]++;
+            maxWei=max(maxWei, wei);
+            col++;
+        }
+    }
+    //3. calculation of the prefix sum of the weight bucket 
+    ui vIdx=0;
+    for (ui w = 0; w <=  maxWei; w++){
+        while (weiB[w]!=0){
+            if(vIdx==0) weiPreSum[vIdx]=w;
+            else{
+                weiPreSum[vIdx]+=weiPreSum[vIdx-1]+w;
+            }
+            vIdx++;
+            weiB[w]--;
+        }
+        // if(weiB[w]==0) continue;
+    }
+    //4. calculating the upper bound
+    for (ui i = C_end-1; i >= P_end; i--){
+        if(i*(i+1)/2-MEInP- weiPreSum[i-P_end]>= gamma*i*(i+1)/2.0){
+            UB=i+1;
+            break;
+        }
+    }
+    nonNeiB.clear(); weiB.clear(); weiPreSum.clear();
+    return UB;
+}
 ui QuasiClique_BB::sortBound(){
+    // printf("enter MQC sort bound\n");
     ui UB=0; ui maxWei=0;
     nonNeiB.resize(P_end+1);
     weiB.resize(C_end);
@@ -518,6 +585,48 @@ void QuasiClique_BB::branch(ui level){
 REC:
     return;
 }
+
+void QuasiClique_BB::branch2(ui level){
+    assert(level<=n+1);
+    ui u=n; bool must_include=false;
+    if(C_end <= LB) goto REC;
+    if (P_end > LB && ( (double)P_end*(P_end-1)-2*MEInP ) >= gamma* (double)P_end*(P_end-1) && is2D(P_end)) store(P_end);
+    if( (double(m)/C_end/(C_end-1))*2.0>= gamma && is2D(C_end)){
+        //because LB>=1, we do not need to consider C_end<=1
+        if(C_end<=1) printf("Error!\n"),exit(0);
+        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, gamma);
+        prune1++; store(C_end); goto REC;
+    }
+    if(sortBoundL()<=LB&&useUB){ub_prune++; goto REC;}
+    if(P_end>=C_end) goto REC; //if candidate set is empty, then return 
+    treeCnt++;
+    if (usePrune1){
+        for (ui i = P_end; i < C_end; i++){
+            ui v=PC[i];
+            if(neiInG[v]>=C_end-2){
+                double edge_sum=(double)P_end*(P_end-1)-2*MEInP+2*neiInP[v];
+                if(edge_sum >= gamma * (double)P_end*(P_end+1)){
+                    must_include=true;
+                    u=v; break;
+                }
+            }
+        }
+    }
+    if(u==n) u=PC[P_end];
+
+    CtoP(u,level);
+    branch(level+1);// branch on adding the vertex u
+    if(must_include){
+        prune1++;
+        PtoC(u,level);
+        goto REC;
+    }
+    PtoX(u,level);
+    branch(level+1);// branch on deleting the vertex u
+    XtoC(u, level);
+REC:
+    return;
+}
 void QuasiClique_BB::branchSubG(ui level){
     // if(treeCnt>80) exit(0);
     treeIdx++;
@@ -634,6 +743,39 @@ void QuasiClique_BB::store(ui newLB){
     QC.resize(LB=newLB);
     for (ui i = 0; i < LB; i++) QC[i]=PC[i];
 }
+
+bool QuasiClique_BB::is2D(ui newLB){
+    bool is2hop=true;
+    for (int i = 0; i < newLB; i++){
+        int u = PC[i];
+        unordered_set<int> neis;
+        //get the neighbors of u in PC[0]~PC[newLB]
+        for (int j = pstart[u]; j < pstart[u+1]; j++){
+            int v = edges[j];
+            if(PC_rid[v] >= 0 && PC_rid[v] < newLB) neis.insert(v);
+        }
+        for (int j = i+1; j < newLB; j++){
+            int v = PC[j];
+            is2hop = false;
+            //check if v is in the neis of u
+            if(neis.find(v)!=neis.end()){
+                is2hop=true;
+            }else{
+                for (int k = pstart[v]; k < pstart[v+1]; k++){
+                    int w = edges[k];
+                    if(neis.find(w)!=neis.end()) {
+                        is2hop = true;
+                        break;
+                    }
+                }   
+            }
+            if(!is2hop) return false;
+        }
+        neis.clear();
+    }
+    return true;
+}
+
 void QuasiClique_BB::swapID(ui i,ui j){
     swap(PC[i],PC[j]);
     PC_rid[PC[i]] = i;
@@ -695,6 +837,7 @@ public:
     void MKDCSearch(ui _K, ui _UB, std::vector<ui> &_KDC);
     void MKDCSearch2hop(vector<ui> &_KDC);
     ui sortBound();
+    ui simpleBound();
     ui sortBoundL();
     bool verifyKDC();
     bool verify2hop(ui _end);
@@ -703,6 +846,7 @@ public:
     ui recover(ui pushCnt, ui level);
     void branchSubG(ui level);
     void branch(ui level);
+    void branch2(ui level);
     void CtoP(ui u, ui level);
     void PtoC(ui u, ui level);
     void PtoX(ui u, ui level);
@@ -710,6 +854,7 @@ public:
     void CtoX(ui u, ui level);
     // bool verifyKDC();
     void store(ui newLB);
+    bool is2hop(ui newLB);
     void swapID(ui i, ui j);
     bool inP(ui u);
     bool inC(ui u);
@@ -838,6 +983,7 @@ void kDefectiveClique_BB::load_graph(ui _n,ept *_pstart, ept *_pend, ui *_edges)
 }
 
 void kDefectiveClique_BB::load_subgraph(ui _K, ui _n, vector<pair<ui,ui>> &_vp, vector<ui> &_KDC, ui _UB){
+    bool onlyUB=true;
     K=_K;
     n=_n;
     maxSubSz=max(maxSubSz, n);
@@ -859,7 +1005,8 @@ void kDefectiveClique_BB::load_subgraph(ui _K, ui _n, vector<pair<ui,ui>> &_vp, 
     colorVec=new ui[n];
     memset(matrix, false, (n*n)*sizeof(bool));
     memset(neiInP, 0, n*sizeof(ui));
-    memset(colUseMtx, 0, n*n*sizeof(long long));
+    if (onlyUB) fill(colUseMtx, colUseMtx+n*n, -1);
+    else memset(colUseMtx, 0, n*n*sizeof(long long));
     for(auto pr:_vp){
         ui u=pr.first, v=pr.second; isAdj(u,v)=isAdj(v,u)=true;
     }
@@ -891,9 +1038,9 @@ void kDefectiveClique_BB::MKDCSearch(ui _K, ui _UB, std::vector<ui> &_KDC){
     printf("enter MQC search 0408\n");
     ui u=PC[0];
     CtoP(u, 0);
-    branch(1);
+    branch2(1);
     PtoX(u,0);
-    branch(1);
+    branch2(1);
     XtoC(u, 0);
     if(LB>_KDC.size()){
         //renew the best solution
@@ -992,7 +1139,67 @@ void kDefectiveClique_BB::MKDCSearch2hop(vector<ui> &_KDC){
     // printf("subgraph search complete, search time: %.2f, treeCnt: %lld\n",double(t.elapsed())/1000000, treeCnt);
 
 }
+ui kDefectiveClique_BB::simpleBound(){
+    ui UB=0; ui maxWei=0;
+    nonNeiB.resize(P_end+1);
+    weiB.resize(C_end);
+    weiPreSum.resize(C_end-P_end);
+    ui colNum=0, maxCol=0; 
+    colorSz[0]=0;
+    //1. use bucket sorting to sort
+    for (ui i = P_end; i < C_end; i++){
+        ui u= PC[i];
+		// if(P_end-neiInP[i]>k) continue;
+		nonNeiB[ui(P_end-neiInP[u])].push_back(u);
+    }
+    //2. coloring the vertices in C
+    ui col=0;
+    for (ui i = 0; i <= P_end; i++){
+        for (auto u:nonNeiB[i]){
+            // ui col=0;
+            // while(colUseMtx[u*n+col]==treeIdx) col++;
+			if(col>maxCol){
+				maxCol=max(maxCol,col);
+				colorSz[maxCol]=0;
+			}
+            // for (ui j = pstart[u]; j < pstart[u+1]; j++){
+            //     ui nei=edges[j];
+            //     // if(!isAdj(u,nei)) continue;
+            //     colUseMtx[nei*n+col]=treeIdx;
+            // }
+            colorSz[col]++;
+            ui wei=i+colorSz[col]-1;
+            weiB[wei]++;
+            maxWei=max(maxWei, wei);
+            col++;
+        }
+        
+    }
+    //3. calculation of the prefix sum of the weight bucket 
+    ui vIdx=0;
+    for (ui w = 0; w <=  maxWei; w++){
+        while (weiB[w]!=0){
+            if(vIdx==0) weiPreSum[vIdx]=w;
+            else{
+                weiPreSum[vIdx]+=weiPreSum[vIdx-1]+w;
+            }
+            vIdx++;
+            weiB[w]--;
+        }
+        // if(weiB[w]==0) continue;
+    }
+    //4. calculating the upper bound
+    for (ui i = P_end; i < C_end; i++){
+        if(weiPreSum[i-P_end]+MEInP>K){
+            UB=i;
+            break;
+        }
+    }
+    nonNeiB.clear(); weiB.clear(); weiPreSum.clear();
+    return UB;
+}
 ui kDefectiveClique_BB::sortBound(){
+    // printf("enter MKDC sort bound\n");
     ui UB=0; ui maxWei=0;
     nonNeiB.resize(P_end+1);
     weiB.resize(C_end);
@@ -1175,6 +1382,50 @@ REC:
     recover(pushCnt, level);
     return;
 }
+void kDefectiveClique_BB::branch2(ui level){
+    assert(level<=n+1);
+    ui pushCnt = (useRed==true? reduction(level):0) ;
+    ui u=n; bool must_include=false;
+    if(C_end <= LB) goto REC;
+    if(MEInP > K) goto REC;
+    if (P_end > LB && is2hop(P_end)) store(P_end);
+    if( MEInG <= K && is2hop(C_end)){
+        //because LB>=1, we do not need to consider C_end<=1
+        if(C_end<=1) printf("Error!\n"),exit(0);
+        printf("G: %d, MEInG: %d, %.3f\n",C_end, MEInG, K);
+        prune1++; store(C_end); goto REC;
+    }
+    if(sortBoundL()<=LB&&useUB){ub_prune++; goto REC;}
+    if(P_end>=C_end) goto REC; //if candidate set is empty, then return 
+    treeCnt++;
+    if (usePrune1){
+        for (ui i = P_end; i < C_end; i++){
+            ui v=PC[i];
+            if(neiInG[v]>=C_end-2){
+                ept edge_sum=P_end*(P_end-1)-2*MEInP+2*neiInP[v];
+                if(edge_sum >= P_end * (P_end + 1) - 2 * K){
+                    must_include=true;
+                    u=v; break;
+                }
+            }
+        }
+    }
+    if(u==n) u=vtxSelect();
+
+    CtoP(u,level);
+    branch(level+1);// branch on adding the vertex u
+    if(must_include){
+        prune1++;
+        PtoC(u,level);
+        goto REC;
+    }
+    PtoX(u,level);
+    branch(level+1);// branch on deleting the vertex u
+    XtoC(u, level);
+REC:
+    recover(pushCnt, level);
+    return;
+}
 void kDefectiveClique_BB::branchSubG(ui level){
     // if(treeCnt>80) exit(0);
     treeIdx++;
@@ -1310,6 +1561,39 @@ void kDefectiveClique_BB::XtoC(ui u, ui level){
 void kDefectiveClique_BB::store(ui newLB){
     KDC.resize(LB=newLB);
     for (ui i = 0; i < LB; i++) KDC[i]=PC[i];
+}
+
+bool kDefectiveClique_BB::is2hop(ui newLB){
+    if(newLB>=K+2) return true;
+    bool is2hop=true;
+    for (int i = 0; i < newLB; i++){
+        int u = PC[i];
+        unordered_set<int> neis;
+        //get the neighbors of u in PC[0]~PC[newLB]
+        for (int j = pstart[u]; j < pstart[u+1]; j++){
+            int v = edges[j];
+            if(PC_rid[v] >= 0 && PC_rid[v] < newLB) neis.insert(v);
+        }
+        for (int j = i+1; j < newLB; j++){
+            int v = PC[j];
+            is2hop = false;
+            //check if v is in the neis of u
+            if(neis.find(v)!=neis.end()){
+                is2hop=true;
+            }else{
+                for (int k = pstart[v]; k < pstart[v+1]; k++){
+                    int w = edges[k];
+                    if(neis.find(w)!=neis.end()) {
+                        is2hop = true;
+                        break;
+                    }
+                }   
+            }
+            if(!is2hop) return false;
+        }
+        neis.clear();
+    }
+    return true;
 }
 
 void kDefectiveClique_BB::swapID(ui i,ui j){
