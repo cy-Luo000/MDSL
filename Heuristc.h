@@ -21,13 +21,13 @@ public:
     ept m_s;
 	std::vector<ui> id_s;
 	std::vector<ui> rid_s;
-	std::vector<ui> deg_s;
-    std::vector<ui> core_s;
+	std::vector<ui> deg_s;// the index in the new subgraph
+    std::vector<ui> core_s;// the index in the new subgraph
     std::vector<ui> seq_s;
 	bool* exist_s;
-    bool* delete_s;
-    char* vis_s;
-	std::vector<ui> heuMDS;
+    bool* delete_s;//the vertices in the original graph
+    char* vis_s;//the index in the new subgraph
+	std::vector<ui> heuMDS;// the index in the new subgraph
 	std::vector<std::vector<ui>> adjList;
     ListLinearHeap *s_heap;
 
@@ -46,7 +46,7 @@ public:
         
 	}
     HeuriSearcher(ui _n,ui _m, ept *_pstart, ui *_edges, ui _K, ui _maxDeg, std::vector<ui>& _KDC){
-		n=_n, m=_m, gamma=_K;
+		n=_n, m=_m, K=_K;
 		this->pstart=_pstart;
 		this->edges=_edges;
 		maxDeg=_maxDeg;
@@ -103,7 +103,7 @@ public:
         }
 		rid_s.resize(1+maxId);
 		//2. get the veritces
-		id_s.push_back(u); rid_s[u]=id_s.size()-1; exist_s[u]=true;
+		id_s.push_back(u); rid_s[u]=id_s.size()-1; exist_s[u]=true;// u is the index in the original graph
 		
 		for (ept i = pstart[u]; i < pstart[u+1]; i++){
             if(delete_s[edges[i]]) continue;
@@ -123,23 +123,41 @@ public:
 			for (ept j = pstart[v]; j < pstart[v+1]; j++){
 				ui w=edges[j];
 				if(exist_s[w]) {
-					adjList[rid_s[v]].push_back(rid_s[w]);
+					adjList[rid_s[v]].push_back(rid_s[w]);//adjList use the index in the new graph
 				}
 			}
 		}
 		//4. construct the degrees
-		for (ui i = 0; i < n_s; i++) deg_s.push_back(ui(adjList[i].size())), m_s+=deg_s[i];
+		for (ui i = 0; i < n_s; i++) deg_s.push_back(ui(adjList[i].size())), m_s+=deg_s[i];//deg_s uses the index in the new graph
         m_s/=2;
         //5. clear the exist
+        // if(u==8){
+        //     printf("the sizeof subgraph=%d\n", n_s);
+        //     printf("seq:\n"); for(int i=0; i<n_s; i++) printf("%d, ",seq_s[i]); printf("\n");
+        //     printf("id_s:\n"); for(int i=0; i<n_s; i++) printf("%d, ",id_s[seq_s[i]]); printf("\n");
+        //     printf("adjList:\n");
+        //     for (int i = 0; i < n_s; i++){
+        //         printf("%d: ",i);
+        //         for (int j = 0; j < adjList[i].size(); j++){
+        //             printf("%d, ", adjList[i][j]);
+        //         }
+        //         printf("\n");
+        //     }
+        //     printf("deg_s:\n");
+        //     for(int i=0; i<n_s; i++) printf("%d, ", deg_s[i]);
+        //     printf("\n");
+        //     // exit(0);
+        // }
         for (ui i = 0; i < n_s; i++) exist_s[id_s[i]]=false;  
         return n_s;
     }
     ui degenHeu(ui u_0, ui u_deg, ListLinearHeap *heap, ui _kind){
+        // printf("K=%d\n",K);
         ui subSz=1+u_deg, s_maxcore=0;
         ui edgeCnt_s=m_s, idx=subSz;
         // printf("u0: %d, subSz: %d\n",u_0, subSz);
         memset(vis_s, 0, subSz*sizeof(char));
-        heap->init(subSz, subSz-1, seq_s.data(), deg_s.data());
+        heap->init(subSz, subSz-1, seq_s.data(), deg_s.data());//there are the errors, the seq_s should store the index in the new graph
         //delete the vertex by degeneracy order
         for (ui i = 0; i < subSz; i++){
             switch (_kind){
@@ -147,7 +165,7 @@ public:
                     if(idx == subSz && edgeCnt_s >= ceil(gamma*(1.0*(subSz - i)*(subSz - i - 1)/2.0)) ) idx = i;
                     break;
                 case 2:
-                    if(idx == subSz && edgeCnt_s >= (subSz - i)*(subSz - i - 1)/2 - K) idx = i;
+                    if(idx == subSz && edgeCnt_s+K >= (subSz - i)*(subSz - i - 1)/2) idx = i;
                     break;
             }
             // if(idx == subSz && edgeCnt_s >= ceil(gamma*(1.0*(subSz - i)*(subSz - i - 1)/2.0)) ) idx = i;
@@ -160,13 +178,24 @@ public:
             edgeCnt_s-=key;
         }
         if(subSz-idx>heuMDS.size()){
+            // printf("K=%d\n",K);
+            // printf("subSz=%d\n", subSz);
+            // printf("edgeCnt of subgraph=%d %d\n", m_s, edgeCnt_s);
             printf("renew heuMDS:%d\n", subSz-idx);
             LB=subSz-idx;
             heuMDS.clear();
             for (ui i = idx; i < subSz; i++) heuMDS.push_back(id_s[seq_s[i]]);
+            // if(u_0==8) {
+            //     printf("kind=%d\n",_kind);
+            //     printf("heuMDS:\n");
+            //     for (int i = 0; i < heuMDS.size(); i++){
+            //         printf("%d, ", heuMDS[i]);
+            //     }
+            //     printf("\n");
+            //     exit(0);
+            // }
             if(!checkExist(u_0, heuMDS)) {printf("error, not include u: %d\n", u_0);}//this should be useless because u_0 is adjacent to all vertices 
         }
-
         seq_s.clear();
         return n;
     }
@@ -202,6 +231,7 @@ public:
             // printf("renew the result in heuristic search\n");
         }
         printf("#HeuSize=%u\n#HeuTime=%.2f\n", LB, double(t.elapsed())/1000000);
+        clear();
 	}
     void degenSearch(std::vector<ui> &_MDS, ui* seq, ui _kind){
         Timer t;
@@ -211,9 +241,10 @@ public:
         ui pre_size = (ui)heuMDS.size(), updt_gap = 0;
         for (ui i = 0; i < n; i++){
             //1. build the subgraph
-            // printf("heuristic search subgraph: %d\n",u);
+            
             ui u = seq[i];
-            subSz=induceNeiBack(u);
+            // printf("i=%d, heuristic search subgraph: %d\n",i,u);
+            subSz=induceNeiBack(u);//u is the index in the original graph
             subMax=max(subMax, subSz);
             ui u_deg=adjList[rid_s[u]].size();
             this->UB=degenHeu(u, u_deg, s_heap, _kind);
@@ -231,9 +262,8 @@ public:
             // printf("renew the result in heuristic search\n");
         }
         printf("#HeuSize=%u\n#HeuSubMax=%u\n#HeuTime=%.2f\n", LB, subMax,double(t.elapsed())/1000000);
+        clear();
     }
 };
-
-
 
 #endif

@@ -16,6 +16,7 @@
 #include <queue>
 #include <set>
 #include<unordered_set>
+#include <unordered_map>
 
 #define _BITSET_ //use bit set to represent the adjacency matrix
 // #define _STATISTIC_

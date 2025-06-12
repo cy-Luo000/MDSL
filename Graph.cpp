@@ -68,17 +68,25 @@ void Graph::read(){
     }
     m=pstart[n];
     printf("\t(processed): n = %u; m = %llu (undirected)\n",n , m/2);
+    // for (int i = 0; i < n; i++){
+    //     printf("u=%d:\n", i);
+    //     for (int j = pstart[i]; j < pstart[i+1]; j++){
+    //         printf("(%d, %d), ",i, edges[j]);
+    //     }
+    //     printf("\n");
+    // }
+    
     fclose(f);
 
 }
 void Graph::search(ui _DSkind){
     Timer t;
     if(n<=0) printf("Max Dense Subgraph is %u\n",0);
-    bool useHeu=true;
-    bool weakDegen=true;    
-    bool turingRed=true;
+    bool useHeu = true;
+    bool weakDegen = true;    
+    bool turingRed = false;
     bool useMIP = false;
-    bool useMIP2hop=false;
+    bool useMIP2hop = false;
     ui UB = n;
     ui *core=new ui[n];
     ui *seq = new ui[n];
@@ -99,7 +107,6 @@ void Graph::search(ui _DSkind){
         }
     }
     
-    
     // if(_DSkind==2) exit(0);
     if(weakDegen){
         deg2Hp = new ui[n];
@@ -111,9 +118,10 @@ void Graph::search(ui _DSkind){
         delete[] deg2Hp;
         delete[] core2Hp;
     }
+    // exit(0);
     delete[] core;
     Timer tt;
-    ui DS_ub=0;bool getUB=false;
+    ui DS_ub = 0; bool getUB = false;
     if(UB>(ui)MDS.size()){
         //enter the search
         if (_DSkind==1){
@@ -131,7 +139,7 @@ void Graph::search(ui _DSkind){
                     // if(sub_n<= pre_size) continue;
                     maxSub = max(maxSub, sub_n);
                     if(sub_n > pre_size){
-                        if(useMIP){
+                        if(useMIP2hop){
     #ifndef _TEST_
                             printf("using MIP 2hop\n");
     #endif
@@ -147,15 +155,14 @@ void Graph::search(ui _DSkind){
     #endif
                                 if(maxSz>MDS.size()) MDS.resize(maxSz);
                             }
-                            
                             delete MIPSolver;
                         }else{
                             
                             QuasiClique_BB *MQCSolver=new QuasiClique_BB();
                             MQCSolver->load_subgraph(gamma, sub_n, vp, MDS,UB);
                             if (getUB){//get the upper bound of BB
-                                // DS_ub=max(DS_ub, MQCSolver->sortBound());
-                                DS_ub=max(DS_ub, MQCSolver->simpleBound());
+                                DS_ub=max(DS_ub, MQCSolver->sortBound());
+                                // DS_ub=max(DS_ub, MQCSolver->simpleBound());
                             }else{
                                 MQCSolver->MQCSearch2hop(MDS);
                                 //update the best solution
@@ -240,7 +247,7 @@ void Graph::search(ui _DSkind){
                     // if(sub_n<=pre_size) continue;
                     maxSub = max(maxSub, sub_n);
                     if(sub_n>pre_size){
-                        if(useMIP){
+                        if(useMIP2hop){
                             MKDCMIP *MIPSolver=new MKDCMIP();
                             MIPSolver->load_subgraph(sub_n, vp, ui(MDS.size()), K);
                             if(getUB) {
@@ -251,14 +258,18 @@ void Graph::search(ui _DSkind){
                                 int maxSz = MIPSolver->MIPSolve2hop();
                                 if(maxSz > MDS.size()) MDS.resize(maxSz);
                             }
-                            
                             delete MIPSolver;
                         }else{
                             kDefectiveClique_BB *MKDCSolver=new kDefectiveClique_BB();
+                            // printf("graph %d:\n", i);
+                            // for(auto e:vp){
+                            //     printf("%d %d, ",e.first, e.second);
+                            // }
+                            // printf("\n");
                             MKDCSolver->load_subgraph(K, sub_n, vp, MDS,UB);
                             if (getUB){
-                                // DS_ub=max(DS_ub, MKDCSolver->sortBound());
-                                DS_ub=max(DS_ub, MKDCSolver->simpleBound());
+                                DS_ub=max(DS_ub, MKDCSolver->sortBound());
+                                // DS_ub=max(DS_ub, MKDCSolver->simpleBound());
                             }else{
                                 MKDCSolver->MKDCSearch2hop(MDS);
                                 //update the best solution
@@ -337,6 +348,7 @@ void Graph::search(ui _DSkind){
         printf("#DSub=%u\n", DS_ub);
 		// printf("#maxP=%d\n#minPUB=%d\n#maxME=%d\n", max_P_end, P_UBMin,maxME);
 		printf("#NodeCount=%lld\n",treeCnt);
+        printf("ub gap sum: %lld, average gap in each node: %lf\n", gapUBSum,(double)gapUBSum/treeCnt);
 		// printf("#MaxSG=%d\n",maxSubSz);
 		// printf("#FeasibleSubgraph=%d\n",feasible);
 		// printf("#prune1=%lld\n#ubprune=%lld\n", prune1,ub_prune);

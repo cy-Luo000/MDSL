@@ -18,11 +18,12 @@ private:
     ept * pstart;
     ept* pend;
     ui *edges_ptr;
+    bool* matrix;
 public:
     MQCMIP(/* args */);
     // MIP(int _n, double _gamma, int _lb);
-    ~MQCMIP();
     void load_graph(ui _n, ept *_pstart, ept *_pend, ui* _edges,ui _lb, double _gamma);
+    ~MQCMIP();
     int dist(ui u, ui v);// to decide whether u and v are 2 hop
     int MIPSolve();
     float getUB2hop();
@@ -31,12 +32,20 @@ public:
     void load_subgraph(ui _n, vector<pair<ui, ui>>& _vp, ui _lb, double _gamma);
     void printinfo();
     void getCN(vector<ui>& cmm_neighbors, ui u, ui v);
+    bool& isAdj(ui u, ui v);
 };
 
 MQCMIP::MQCMIP(/* args */){
     n=m=0;
     lb=0, ub=INT32_MAX;
     gamma=1.0;
+    pstart=NULL;
+    pend=NULL;
+    edges_ptr=NULL;
+    matrix = NULL;
+}
+bool& MQCMIP::isAdj(ui u, ui v){
+    return matrix[u*n+v];
 }
 int MQCMIP::dist(ui u, ui v){
     unordered_set<ui> neighbors;
@@ -66,12 +75,29 @@ void MQCMIP::load_graph(ui _n, ept *_pstart, ept *_pend, ui* _edges,ui _lb, doub
 void MQCMIP::load_subgraph(ui _n, vector<pair<ui, ui>>& _vp, ui _lb, double _gamma){
     n=_n; lb=_lb; gamma=_gamma;
     // maxSubSz=max(maxSubSz, n);
+    pstart=new ept[n+1];
+    pend = new ept[n];
+    matrix = new bool[n*n];
+    memset(matrix, false, (n*n)*sizeof(bool));
+    m = _vp.size();
+    edges_ptr = new ui[2*m];
     for(auto &p: _vp){
+        int u=p.first, v=p.second;
+        isAdj(u, v) = isAdj(v, u) = true;
         if(p.first>p.second){
             int a=p.second;
             p.second=p.first, p.first=a;
         }
     }
+    ept idx = 0;
+    for (ui i = 0; i < n; i++){
+        pstart[i]=idx;
+        for (ui j = 0; j < n; j++){
+            if(isAdj(i,j)) edges_ptr[idx++]=j;
+        }
+    }
+    pstart[n] = idx;
+    for (int i = 0; i < n; i++) pend[i]=pstart[i+1];
     sort(_vp.begin(), _vp.end());
     for(auto e: _vp){
         if(!edges.empty()){
@@ -305,6 +331,7 @@ int MQCMIP::MIPSolve2(){
         cout << "Optimization was terminated with status " << model.get(GRB_IntAttr_Status) << endl;
     }
     cout << "Gurobi Time: " << model.get(GRB_DoubleAttr_Runtime) << endl;
+    pstart=NULL, pend=NULL, edges_ptr=NULL;
         // cout << "Total Weight: " << obj_gurobi + weight_fixed_ << endl;
     return obj_gurobi;
 }
@@ -388,6 +415,23 @@ int MQCMIP::MIPSolve2hop(){
     model.addConstr(vNum1==vNum2, "c1");
     model.addConstr(zSum==1, "c2");
 
+    //add 2hop constraint(2025-0107)
+    vector<ui> cmm_neighbors;
+    for (int u = 0; u < n; u++){
+        for (int v = u+1; v < n; v++){
+            if(dist(u,v)==2){
+                getCN(cmm_neighbors, u, v);
+                GRBLinExpr constr=0;
+                constr+=(x[u]+x[v]);
+                for(auto cmm_nei:cmm_neighbors){
+                    constr-=x[cmm_nei];
+                }
+                model.addConstr(constr<=1, "d_"+to_string(u)+to_string(v));
+            }else if(dist(u,v)==3){
+                model.addConstr(x[u]+x[v]<=1, "d_"+to_string(u)+to_string(v));
+            }
+        }
+    }
     //optimize
     // Optimize model
     model.optimize();
@@ -522,6 +566,23 @@ float MQCMIP::getUB2hop(){
     model.addConstr(vNum1==vNum2, "c1");
     model.addConstr(zSum==1, "c2");
 
+    //add 2hop constraint(2025-0108)
+    vector<ui> cmm_neighbors;
+    for (int u = 0; u < n; u++){
+        for (int v = u+1; v < n; v++){
+            if(dist(u,v)==2){
+                getCN(cmm_neighbors, u, v);
+                GRBLinExpr constr=0;
+                constr+=(x[u]+x[v]);
+                for(auto cmm_nei:cmm_neighbors){
+                    constr-=x[cmm_nei];
+                }
+                model.addConstr(constr<=1, "d_"+to_string(u)+to_string(v));
+            }else if(dist(u,v)==3){
+                model.addConstr(x[u]+x[v]<=1, "d_"+to_string(u)+to_string(v));
+            }
+        }
+    }
     //optimize
     // Optimize model
     model.optimize();
@@ -538,6 +599,22 @@ MQCMIP::~MQCMIP()
     if(!edges.empty()){
         edges.clear();
     }
+    if(pstart!=NULL){
+        delete[] pstart;
+        pstart = NULL;
+    }
+    if(pend!=NULL){
+        delete[] pend;
+        pend = NULL;
+    }
+    if(edges_ptr!=NULL){
+        delete[] edges_ptr;
+        edges_ptr = NULL;
+    }
+    if(matrix!=NULL){
+        delete[] matrix;
+        matrix = NULL;
+    }
 }
 
 class MKDCMIP
@@ -550,6 +627,7 @@ private:
     ept * pstart;
     ept* pend;
     ui *edges_ptr;
+    bool* matrix;
 public:
     MKDCMIP(/* args */);
     // MIP(int _n, int _s, int _lb);
@@ -563,6 +641,7 @@ public:
     float getUB2hop();
     void load_subgraph(ui _n, vector<pair<ui, ui>>& _vp, ui _lb, ui _s);
     void printinfo();
+    bool& isAdj(ui u, ui v);
 };
 
 MKDCMIP::MKDCMIP(/* args */)
@@ -570,6 +649,13 @@ MKDCMIP::MKDCMIP(/* args */)
     n=m=0;
     lb=0, ub=INT32_MAX;
     s=1;
+    pstart = NULL;
+    pend = NULL;
+    edges_ptr = NULL;
+    matrix = NULL;
+}
+bool& MKDCMIP::isAdj(ui u, ui v){
+    return matrix[u*n+v];
 }
 void MKDCMIP::load_graph(ui _n, ept *_pstart, ept *_pend, ui* _edges,ui _lb, ui _s){
     n=_n; lb=_lb; s=_s;
@@ -609,15 +695,34 @@ void MKDCMIP::getCN(vector<ui>& cmm_neighbors, ui u, ui v){
         }
     }
 }
+
 void MKDCMIP::load_subgraph(ui _n, vector<pair<ui, ui>>& _vp, ui _lb, ui _s){
     n=_n; lb=_lb; s=_s;
     // maxSubSz=max(maxSubSz, n);
+    pstart=new ept[n+1];
+    pend = new ept[n];
+    matrix = new bool[n*n];
+    memset(matrix, false, (n*n)*sizeof(bool));
+    m = _vp.size();
+    edges_ptr = new ui[2*m];
+    
     for(auto &p: _vp){
+        int u=p.first, v=p.second;
+        isAdj(u, v) = isAdj(v, u) = true;
         if(p.first>p.second){
             int a=p.second;
             p.second=p.first, p.first=a;
         }
     }
+    ept idx = 0;
+    for (ui i = 0; i < n; i++){
+        pstart[i]=idx;
+        for (ui j = 0; j < n; j++){
+            if(isAdj(i,j)) edges_ptr[idx++]=j;
+        }
+    }
+    pstart[n] = idx;
+    for (int i = 0; i < n; i++) pend[i]=pstart[i+1];
     sort(_vp.begin(), _vp.end());
     for(auto e: _vp){
         if(!edges.empty()){
@@ -838,6 +943,7 @@ int MKDCMIP::MIPSolve2(){
         cout << "Optimization was terminated with status " << model.get(GRB_IntAttr_Status) << endl;
     }
     cout << "Gurobi Time: " << model.get(GRB_DoubleAttr_Runtime) << endl;
+    pstart=NULL, pend=NULL, edges_ptr=NULL;
         // cout << "Total Weight: " << obj_gurobi + weight_fixed_ << endl;
     return obj_gurobi;
 }
@@ -873,6 +979,23 @@ int MKDCMIP::MIPSolve2hop(){
     for (int v = 0; v < n; v++) {
         x[v] = model.addVar(0.0, 1.0, 0.0, GRB_BINARY, "x_" + to_string(v));
         objective += x[v];
+    }
+    //add 2hop constraint(2025-0107)
+    vector<ui> cmm_neighbors;
+    for (int u = 0; u < n; u++){
+        for (int v = u+1; v < n; v++){
+            if(dist(u,v)==2){
+                getCN(cmm_neighbors, u, v);
+                GRBLinExpr constr=0;
+                constr+=(x[u]+x[v]);
+                for(auto cmm_nei:cmm_neighbors){
+                    constr-=x[cmm_nei];
+                }
+                model.addConstr(constr<=1, "d_"+to_string(u)+to_string(v));
+            }else if(dist(u,v)==3){
+                model.addConstr(x[u]+x[v]<=1, "d_"+to_string(u)+to_string(v));
+            }
+        }
     }
     model.setObjective(objective, GRB_MAXIMIZE);
     //init e[i,j]
@@ -1058,6 +1181,23 @@ float MKDCMIP::getUB2hop(){
     model.addConstr(vNum1==vNum2, "c1");
     model.addConstr(zSum==1, "c2");
 
+    //add 2hop constraint(2025-0108)
+    vector<ui> cmm_neighbors;
+    for (int u = 0; u < n; u++){
+        for (int v = u+1; v < n; v++){
+            if(dist(u,v)==2){
+                getCN(cmm_neighbors, u, v);
+                GRBLinExpr constr=0;
+                constr+=(x[u]+x[v]);
+                for(auto cmm_nei:cmm_neighbors){
+                    constr-=x[cmm_nei];
+                }
+                model.addConstr(constr<=1, "d_"+to_string(u)+to_string(v));
+            }else if(dist(u,v)==3){
+                model.addConstr(x[u]+x[v]<=1, "d_"+to_string(u)+to_string(v));
+            }
+        }
+    }
     //optimize
     // Optimize model
     model.optimize();
@@ -1069,10 +1209,25 @@ float MKDCMIP::getUB2hop(){
     }
     return 0.0;
 }
-MKDCMIP::~MKDCMIP()
-{
+MKDCMIP::~MKDCMIP(){
     if(!edges.empty()){
         edges.clear();
+    }
+    if(pstart!=NULL){
+        delete[] pstart;
+        pstart = NULL;
+    }
+    if(pend!=NULL){
+        delete[] pend;
+        pend = NULL;
+    }
+    if(edges_ptr!=NULL){
+        delete[] edges_ptr;
+        edges_ptr = NULL;
+    }
+    if(matrix!=NULL){
+        delete[] matrix;
+        matrix = NULL;
     }
 }
 
