@@ -12,14 +12,18 @@
 #include <algorithm>
 #include <sstream>
 #include <iostream>
+#include<fstream>
 #include <queue>
 #include <set>
+#include <list>
+#include<unordered_set>
+#include <unordered_map>
 
 #define _BITSET_ //use bit set to represent the adjacency matrix
 // #define _STATISTIC_
 #define _KERNEL_
 #define _RECOLOR_
-
+#define _TEST_
 #include <cassert>
 
 #ifdef _BITSET_
@@ -33,12 +37,19 @@
 #define test_bit(array, pos) ((array)[pos])
 #endif
 
-using ui = int; // vertex type
-using ept = int; // edge pointer type; unsigned int can be used to process upto two billion undirected edges
+using ui = unsigned int; // vertex type
+using ept = unsigned long; // edge pointer type; unsigned int can be used to process upto two billion undirected edges
 
 #define pb push_back
 #define mp make_pair
+// long long treeCnt=0;
+// long long ub_prune=0;
+// long long prune1=0;
+// bool usePrune1=false;
+// bool useUB=true;
+// bool useHeu=true;
 
+// ui maxSubSz=0;
 class Utility {
 public:
 	static FILE *open_file(const char *file_name, const char *mode) {
